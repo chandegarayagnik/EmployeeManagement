@@ -2,11 +2,11 @@
   "name": "empmanagement",
   "version": "1.0.0",
   "description": "",
-  "main": "app.js",
+  "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node src/app.js",
-    "dev": "nodemon src/app.js"
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
   },
   "keywords": [],
   "author": "",
@@ -14,11 +14,14 @@
   "type": "module",
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "mssql": "^12.1.0",
     "multer": "^2.0.2",
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.10",
+    "sequelize": "^6.37.7",
+    "tedious": "^19.1.3"
   }
 }

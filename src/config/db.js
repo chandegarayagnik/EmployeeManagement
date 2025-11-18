@@ -1,25 +1,33 @@
-import sql from "mssql"
+import { Sequelize } from "sequelize";
 import "dotenv/config"
 
-export const config = {
-    user: process.env.DB_USER,
-    password: process.env.DB_PASS,
-    server: process.env.DB_SERVER,
-    database: process.env.DB_NAME,
-    options : {
-        trustServerCertificate: true
-    }
-}
-
-export async function ConnectDB() {
+export const dbConnection = async () => {
     try {
-        await sql.connect(config);
-        console.log("✅ Connected to MSSQL Database");
+        let masterConnection = new Sequelize(
+            process.env.MASTER_DB_NAME,
+            process.env.DB_USER,
+            process.env.DB_PASSWORD,
+            {
+                host: process.env.DB_SERVER,
+                dialect: "mssql",
+                dialectOptions: {
+                    options: {
+                        encrypt: true,
+                        trustServerCertificate: true,
+                        trustedConnection: true,
+                    },
+                },
+                logging: false,
+            }
+        );
+
+        await masterConnection.authenticate();
+        console.log("✅ Database connected successfully...");
+        return masterConnection;
     } catch (err) {
         console.error("Database connection failed:", err);
+        throw err
     }
 }
 
-ConnectDB()
-
-export default sql
+dbConnection()
