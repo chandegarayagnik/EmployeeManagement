@@ -10,7 +10,7 @@ router.get("/", (req, res) => {
 
 router.get("/getemp", getEmp)
 
-router.post("/empinsert", authMiddleware, createEmp)
+router.post("/empinsert", createEmp)
 
 // router.put("/empupdate/:id", async (req, res) => {
 //     const { name, position, salary } = req.body

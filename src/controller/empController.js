@@ -1,7 +1,8 @@
-import sql from "../config/db.js"
+import { dbConnection } from "../config/db.js";
 
 export const getEmp = async (req, res) => {
     const { id, name, position, salary, page, pageSize } = req.query
+    const sequelize = await dbConnection()
     try {
 
         let query = `SELECT * FROM emp WHERE 1=1`;
@@ -39,7 +40,7 @@ export const getEmp = async (req, res) => {
 
         query += " ORDER BY id DESC";
 
-        const countresult = await sql.query(countQuery, { replacements });
+        const countresult = await sequelize.query(countQuery, { replacements });
         const totalCount = countresult.recordset[0].totalCount || 0;
 
         // Apply The Pagination 
@@ -54,7 +55,7 @@ export const getEmp = async (req, res) => {
             console.log("Pagination => ", query);
         }
 
-        const result = await sql.query(query, { replacements });
+        const result = await sequelize.query(query, { replacements });
 
         console.log("Replacement => ", replacements);
 
@@ -62,11 +63,14 @@ export const getEmp = async (req, res) => {
     } catch (error) {
         res.status(500).json({ message: error.message })
         console.log(error);
+    } finally {
+        await sequelize.close()
     }
 }
 
 export const createEmp = async (req, res) => {
     const { empukid, name, position, salary, flag = "A" } = req.body
+    const sequelize = await dbConnection()
     try {
         let query = ""
 
@@ -76,19 +80,26 @@ export const createEmp = async (req, res) => {
 
         query += `insert into emp(empukid, name, position, salary) values('${empukid}','${name}', '${position}','${salary}')`
 
-        await sql.query(query)
+        await sequelize.query(query)
         res.status(200).json({ message: flag === "A" ? "Employee Create SuccessFully" : "Employee Update SucessFully", success: true })
     } catch (error) {
         res.status(500).json({ message: error.message })
+    } finally {
+        await sequelize.close()
     }
 }
 
 export const deleteEmp = async (req, res) => {
+    const { empukid } = req.params;
+    const sequelize = await dbConnection()
+
     try {
-        const { empukid } = req.params
-        await sql.query`delete from emp where empukid='${empukid}'`;
-        res.status(200).json({ message: "Employee delete successFully" })
+        const query = `Delete From emp where empukid = :empukid`
+        const result = await sequelize.query(query, { replacements: { empukid } });
+        res.status(200).json({ message: "Employee delete successFully", Success: true })
     } catch (error) {
-        res.status(500).json({ message: error.message })
+        res.status(500).json({ message: error.message, Success: false })
+    } finally {
+        await sequelize.close()
     }
 }
