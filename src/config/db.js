@@ -19,7 +19,7 @@ export const dbConnection = async () => {
                 },
                 logging: false,
             }
-        );
+        );        
 
         await masterConnection.authenticate();
         console.log("✅ Database connected successfully...");

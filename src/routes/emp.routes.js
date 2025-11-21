@@ -1,16 +1,14 @@
 import { Router } from "express";
-import { getEmp, createEmp, deleteEmp } from "../controller/empController.js";
+import { getEmp, createEmp, deleteEmp } from "../controller/emp.controller.js";
 import authMiddleware from "../middleware/auth.middleware.js"
+import { validate } from "../middleware/validate.js";
+import { createEmpSchema, deleteEmpSchema } from "../validation/emp.validation.js";
 
 const router = Router()
 
-router.get("/", (req, res) => {
-    res.json({ message: "Employee Management System" })
-})
-
 router.get("/getemp", getEmp)
 
-router.post("/empinsert", createEmp)
+router.post("/AddAndUpdateEmp", validate(createEmpSchema), createEmp)
 
 // router.put("/empupdate/:id", async (req, res) => {
 //     const { name, position, salary } = req.body
@@ -23,6 +21,6 @@ router.post("/empinsert", createEmp)
 //     }
 // })
 
-router.delete("/empdelete/:empukid", deleteEmp) 
+router.delete("/empdelete/:empukid", validate(deleteEmpSchema), deleteEmp) 
 
-export const emprouter = router
+export default router

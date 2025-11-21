@@ -1,5 +1,5 @@
 import express from "express"
-import { emprouter } from "./router/emp.router.js"
+import router from "./routes/index.js"
 import cors from "cors"
 import "../src/config/db.js"
 import "dotenv/config"
@@ -10,7 +10,7 @@ const port = process.env.PORT || 8080
 
 app.use(express.json())
 app.use(cors());
-app.use('/api', emprouter)
+app.use("/api", router)
 
 app.get("/", (req, res) => {
     res.send("Employee Management Api Running...")
