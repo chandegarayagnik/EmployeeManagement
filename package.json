@@ -22,6 +22,7 @@
     "mssql": "^12.1.0",
     "multer": "^2.0.2",
     "nodemon": "^3.1.10",
+    "pdfkit": "^0.17.2",
     "sequelize": "^6.37.7",
     "tedious": "^19.1.3"
   }

@@ -40,9 +40,9 @@ export const getEmp = async (req, res) => {
 
         }
 
-        query += " ORDER BY id DESC";
+        query += " ORDER BY empukid DESC";
 
-        const countresult = await sequelize.query(countQuery, { replacements });
+        const [countresult] = await sequelize.query(countQuery, { replacements });
         const totalCount = countresult[0]?.totalCount || 0;
 
         // Apply The Pagination 
@@ -57,7 +57,7 @@ export const getEmp = async (req, res) => {
             console.log("Pagination => ", query);
         }
 
-        const result = await sequelize.query(query, { replacements });
+        const [result] = await sequelize.query(query, { replacements });
 
         console.log("Replacement => ", replacements);
 
