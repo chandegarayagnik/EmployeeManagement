@@ -9,6 +9,6 @@ router.use("/getdepart", getdepartment)
 
 router.use("/AddAndUpdateDepart", validate(createDepartmentSchema), createdepartment)
 
-router.use("/deletedepart", validate(deleteDepartmentShema), deletedepartment)
+router.use("/deletedepart/:DepartmentID", validate(deleteDepartmentShema), deletedepartment)
 
 export default router
