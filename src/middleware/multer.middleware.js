@@ -13,6 +13,9 @@ const storage = multer.diskStorage({
     }
 })
 
-const upload = multer({ storage: storage})
-
-export default upload
+export const upload = multer({
+    storage: storage,
+    limits: { fileSize: 1 * 1024 * 1024 * 1024 }  // 1GB
+}).fields([
+    { name: 'empphoto', maxCount: 100 }
+]);

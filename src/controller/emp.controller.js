@@ -2,59 +2,63 @@ import { dbConnection } from "../config/db.js";
 
 
 export const createEmp = async (req, res) => {
-    const { empukid, name, email, position, salary, phone, join_date, DepartmentID } = req.body;
-    
+    const { empukid, name, email, position, salary, phone, join_date, DepartmentID, Master = "" } = req.body;
+    const empphoto =  req.files.empphoto[0]?.filename || null;
+
     const sequelize = await dbConnection();
-    
+
     try {
-        
-        if (flag === "A") {
-            const [emailCheck] = await sequelize.query(
-                `SELECT email FROM emp WHERE email = :email`,
-                { replacements: { email } }
-            );
-            
-            if (emailCheck.length > 0) {
-                return res.status(400).json({
-                    error: "Email already exists",
-                    Success: false
-                });
-            }
-        }
-        
+
+        // if (flag === "A") {
+        //     const [emailCheck] = await sequelize.query(
+        //         `SELECT email FROM emp WHERE email = :email`,
+        //         { replacements: { email } }
+        //     );
+
+        //     if (emailCheck.length > 0) {
+        //         return res.status(400).json({
+        //             error: "Email already exists",
+        //             Success: false
+        //         });
+        //     }
+        // }
+
         let query = "";
-        
-        if (flag === "U") {
-            query += ` 
-            DELETE FROM emp WHERE empukid = :empukid;
-            `;
-        }
-        
+
+        // if (flag === "U") {
+        //     query += ` 
+        //     DELETE FROM emp WHERE empukid = :empukid;
+        //     `;
+        // }
+
         query += `
         INSERT INTO emp
-        (empukid, name, email, position, salary, flag, phone, join_date, DepartmentID)
+        (empukid, name, email, position, salary, phone, join_date, DepartmentID, empphoto, Master)
         VALUES
-        (:empukid, :name, :email, :position, :salary, :flag, :phone, :join_date, :DepartmentID);
+        (:empukid, :name, :email, :position, :salary, :phone, :join_date, :DepartmentID, :empphoto, :Master);
         `;
-        
+
         await sequelize.query(query, {
             replacements: {
-                empukid, name, email, position, salary, flag, phone, join_date, DepartmentID
+                empukid, name, email, position, salary, phone, join_date, DepartmentID, empphoto, Master
             },
         });
-        
+
         res.status(200).json({
-            message:
-            flag === "A" ? "Employee Create SuccessFully" : "Employee Update SuccessFully", Success: true
+            message: "Employee Create SuccessFully", Success: true
         });
-        
+
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: err.errors[0].message, Success: false });
+        res.status(500).json({ error: err.message, Success: false });
     } finally {
         await sequelize.close();
     }
 };
+
+export const updateEmp = async (req, res) => {
+    
+}
 
 export const getEmp = async (req, res) => {
     const { empukid, name, position, salary, page, pageSize } = req.query;
@@ -122,7 +126,7 @@ export const getEmp = async (req, res) => {
     } finally {
         await sequelize.close()
     }
-} 
+}
 
 export const deleteEmp = async (req, res) => {
     const { empukid } = req.params;
