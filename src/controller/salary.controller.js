@@ -60,10 +60,38 @@ export const getSalary = async (req, res) => {
 
 // ===================== CREATE / UPDATE Salary ===========================
 export const createSalary = async (req, res) => {
-    const { id, empukid, basic, hra, bonus, deduction, flag = "A" } = req.body;
+    const { id, empukid, hra, bonus, deduction, flag = "A" } = req.body;
     const sequelize = await dbConnection();
 
     try {
+
+        if (flag === "A") {
+            const [empukidCheck] = await sequelize.query(
+                `SELECT empukid FROM salary WHERE empukid = :empukid`,
+                { replacements: { empukid } }
+            );
+            
+            if (empukidCheck.length > 0) {
+                return res.status(400).json({
+                    error: "Empukid already exists",
+                    Success: false
+                });
+            }
+        }
+
+        const salaryQuery = `
+        SELECT salary from emp
+        WHERE empukid = :empukid
+        `;
+
+        const [salaryRows] = await sequelize.query(salaryQuery, {
+            replacements: { empukid }
+        });
+
+        const { salary } = salaryRows[0]
+
+        const basic = salary
+
         let query = "";
 
         if (flag === "U") {

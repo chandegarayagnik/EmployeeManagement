@@ -15,7 +15,7 @@ export const getdepartment = async (req, res) => {
             replacements.DepartmentID = DepartmentID
             console.log("D Id => ", query);
             console.log("=> ", countQuery);
-            
+
         }
 
         if (DepartmentName) {
@@ -23,7 +23,7 @@ export const getdepartment = async (req, res) => {
             countQuery += ` AND DepartmentName LIKE :DepartmentName`;
             replacements.DepartmentName = `%${DepartmentName}%`
             console.log("Name => ", query);
-            console.log("",countQuery);
+            console.log("", countQuery);
 
         }
 
@@ -44,11 +44,11 @@ export const getdepartment = async (req, res) => {
             console.log("Pagination => ", query);
         }
 
-        const [result ]= await sequelize.query(query, { replacements });
+        const [result] = await sequelize.query(query, { replacements });
 
         console.log("Replacement => ", replacements);
 
-        res.status(200).json({ data: result, totalCount })
+        res.status(200).json({ data: result[0], totalCount })
     } catch (error) {
         res.status(500).json({ message: error.message })
         console.log(error);
@@ -92,7 +92,7 @@ export const createdepartment = async (req, res) => {
 
     } catch (err) {
         console.error(err);
-        res.status(500).json({ message : err.message, Success: false });
+        res.status(500).json({ message: err.message, Success: false });
     } finally {
         await sequelize.close();
     }
@@ -105,6 +105,10 @@ export const deletedepartment = async (req, res) => {
     try {
         const query = `Delete From department where DepartmentID = :DepartmentID;`
         const result = await sequelize.query(query, { replacements: { DepartmentID } });
+        if (result[1] === 0) {
+            return res.status(404).json({ message: "Department Not Found" })
+        }
+
         res.status(200).json({ message: "Delete Department successFully", Success: true })
     } catch (error) {
         res.status(500).json({ message: error.message, Success: false })

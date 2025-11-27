@@ -2,7 +2,7 @@ import { dbConnection } from "../config/db.js";
 
 
 export const createEmp = async (req, res) => {
-    const { empukid, name, email, position, salary, flag = "A", phone, join_date, DepartmentID } = req.body;
+    const { empukid, name, email, position, salary, phone, join_date, DepartmentID } = req.body;
     
     const sequelize = await dbConnection();
     
@@ -89,8 +89,8 @@ export const getEmp = async (req, res) => {
         }
 
         if (salary) {
-            query += `AND salary= :salary`;
-            countQuery += `AND salary= :salary`
+            query += ` AND salary= :salary`;
+            countQuery += ` AND salary= :salary`
             replacements.salary = salary
             console.log("salary => ", query);
 

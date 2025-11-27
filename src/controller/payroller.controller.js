@@ -1,134 +1,94 @@
 import { dbConnection } from "../config/db.js";
 
-
-// ===================== GET Payroll with JOIN ===========================
-export const getPayroll = async (req, res) => {
-    const { empukid, month, page, pageSize } = req.query;
-    const sequelize = await dbConnection();
-
-    try {
-        let query = `
-            SELECT 
-                p.*, 
-                e.name, 
-                e.email, 
-                e.position
-            FROM payroll p
-            INNER JOIN emp e ON p.empukid = e.empukid
-            WHERE 1=1
-        `;
-
-        let countQuery = `
-            SELECT COUNT(*) AS totalCount
-            FROM payroll p
-            INNER JOIN emp e ON p.empukid = e.empukid
-            WHERE 1=1
-        `;
-
-        const replacements = {};
-
-        if (empukid) {
-            query += " AND p.empukid = :empukid";
-            countQuery += " AND p.empukid = :empukid";
-            replacements.empukid = empukid;
-        }
-
-        if (month) {
-            query += " AND p.month = :month";
-            countQuery += " AND p.month = :month";
-            replacements.month = month;
-        }
-
-        query += " ORDER BY p.id DESC";
-
-        const pageNum = parseInt(page, 10);
-        const pageSizeNum = parseInt(pageSize, 10);
-
-        if (pageNum > 0 && pageSizeNum > 0) {
-            const offset = (pageNum - 1) * pageSizeNum;
-            query += ` OFFSET ${offset} ROWS FETCH NEXT ${pageSizeNum} ROWS ONLY`;
-        }
-
-        const countResult = await sequelize.query(countQuery, { replacements });
-        const totalCount = countResult[0]?.totalCount || 0;
-
-        const result = await sequelize.query(query, { replacements });
-
-        res.status(200).json({ data: result, totalCount });
-
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    } finally {
-        await sequelize.close();
-    }
-};
-
-
-// ===================== CREATE / UPDATE Payroll ===========================
-export const createPayroll = async (req, res) => {
-    const {
-        id,
-        empukid,
-        month,
-        total_days,
-        present_days,
-        gross_salary,
-        net_salary,
-        generated_date,
-        flag = "A"
-    } = req.body;
+// ===================== GENERATE PAYROLL ===========================
+export const generatePayroll = async (req, res) => {
+    const { empukid, month, total_days, present_days } = req.body;
 
     const sequelize = await dbConnection();
-
     try {
-        let query = "";
+        
+       const checkQuery = `
+       SELECT COUNT(*) AS count
+       FROM payroll
+       WHERE empukid = :empukid
+       AND month = :month
+       `;
 
-        if (flag === "U") {
-            query += `DELETE FROM payroll WHERE id = :id;`;
+       console.log("check Query => ", checkQuery);
+
+        const [checkResult] = await sequelize.query(checkQuery, {
+            replacements: { empukid, month }
+        });
+
+        console.log("check RESULT => ", checkResult);
+        
+        if (checkResult[0].count > 0) {
+            return res.status(400).json({
+                error: "Payroll Already Created For This Employee And Month",
+                Success: false
+            });
+            
         }
 
-        query += `
+        const salaryQuery = `
+        SELECT basic, hra, bonus, deduction
+        FROM salary
+        WHERE empukid = :empukid
+        `;
+
+        const [salaryRows] = await sequelize.query(salaryQuery, {
+            replacements: { empukid }
+        });
+
+        //  Check Payroll Already Exists
+
+
+        if (!salaryRows || salaryRows.length === 0) {
+            return res.status(404).json({
+                message: "Salary record not found for this employee"
+            });
+        }
+
+        const { basic, hra, bonus, deduction } = salaryRows[0];
+
+        const gross_salary = (basic + hra + bonus).toFixed(2);
+        const net_salary = (gross_salary - deduction).toFixed(2);
+
+
+        const insertQuery = `
             INSERT INTO payroll
             (empukid, month, total_days, present_days, gross_salary, net_salary, generated_date)
             VALUES
-            (:empukid, :month, :total_days, :present_days, :gross_salary, :net_salary, :generated_date);
+            (:empukid, :month, :total_days, :present_days, :gross_salary, :net_salary, GETDATE())
         `;
 
-        await sequelize.query(query, {
+        await sequelize.query(insertQuery, {
             replacements: {
-                id, empukid, month, total_days, present_days,
-                gross_salary, net_salary, generated_date
+                empukid,
+                month,
+                total_days,
+                present_days,
+                gross_salary,
+                net_salary,
             }
         });
 
         res.status(200).json({
-            message: flag === "A" ? "Payroll Created Successfully" : "Payroll Updated Successfully",
+            message: "Payroll Generated Successfully",
+            data: {
+                empukid,
+                month,
+                total_days,
+                present_days,
+                gross_salary,
+                net_salary,
+            },
             Success: true
         });
 
     } catch (error) {
-        res.status(500).json({ message: error.message, Success: false });
-    } finally {
-        await sequelize.close();
-    }
-};
-
-
-// ===================== DELETE Payroll ===========================
-export const deletePayroll = async (req, res) => {
-    const { id } = req.params;
-    const sequelize = await dbConnection();
-
-    try {
-        await sequelize.query(
-            "DELETE FROM payroll WHERE id = :id",
-            { replacements: { id } }
-        );
-
-        res.status(200).json({ message: "Payroll deleted successfully", Success: true });
-
-    } catch (error) {
-        res.status(500).json({ message: error.message, Success: false });
+        console.log(error);
+        res.status(500).json({ message: error.message });
     } finally {
         await sequelize.close();
     }

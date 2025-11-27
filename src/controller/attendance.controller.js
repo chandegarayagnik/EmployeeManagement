@@ -1,6 +1,5 @@
 import { dbConnection } from "../config/db.js";
 
-
 export const getAttendance = async (req, res) => {
     const { empukid, date, status, page, pageSize } = req.query;
     const sequelize = await dbConnection();
@@ -27,20 +26,17 @@ export const getAttendance = async (req, res) => {
 
         const replacements = {};
 
-
         if (empukid) {
             query += ` AND a.empukid = :empukid`;
             countQuery += ` AND a.empukid = :empukid`;
             replacements.empukid = empukid;
         }
 
-
         if (date) {
             query += ` AND a.date = :date`;
             countQuery += ` AND a.date = :date`;
             replacements.date = date;
         }
-
 
         if (status) {
             query += ` AND a.status = :status`;
@@ -80,6 +76,22 @@ export const createAttendance = async (req, res) => {
 
     try {
         let query = "";
+
+        if (flag === "A") {
+            const [empukidCheck] = await sequelize.query(
+                `SELECT empukid FROM emp WHERE empukid = :empukid`,
+                { replacements: { empukid } }
+            );
+
+            console.log("===>", empukidCheck);
+            
+            if (empukidCheck.length > 0) {
+                return res.status(400).json({
+                    error: "Empukid already exists",
+                    Success: false
+                });
+            }
+        }
 
         if (flag === "U") {
             // Delete existing record before update

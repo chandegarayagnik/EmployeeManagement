@@ -8,7 +8,7 @@ const router = Router()
 
 router.get("/getemp", getEmp)
 
-router.post("/AddAndUpdateEmp", validate(createEmpSchema), createEmp)
+router.post("/AddEmp/:Master", authMiddleware, validate(createEmpSchema), createEmp)
 
 // router.put("/empupdate/:id", async (req, res) => {
 //     const { name, position, salary } = req.body

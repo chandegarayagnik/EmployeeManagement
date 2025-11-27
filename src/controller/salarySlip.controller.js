@@ -1,6 +1,46 @@
 import PDFDocument from "pdfkit";
 import { dbConnection } from "../config/db.js";
 
+// ---------------- TABLE HELPER FUNCTION ----------------
+function drawTable(doc, startX, startY, table) {
+    const { headers, rows, columnWidths, rowHeight } = table;
+    let y = startY;
+
+    const totalWidth = columnWidths.reduce((a, b) => a + b, 0);
+
+    // Header background
+    doc.rect(startX, y, totalWidth, rowHeight)
+        .fill("#e8e8e8")
+        .stroke();
+
+    doc.fillColor("black");
+
+    // Header text
+    headers.forEach((header, i) => {
+        const x = startX + columnWidths.slice(0, i).reduce((a, b) => a + b, 0);
+        doc.text(header, x + 5, y + 7);
+    });
+
+    // Header row border
+    doc.rect(startX, y, totalWidth, rowHeight).stroke();
+    y += rowHeight;
+
+    // Data rows
+    rows.forEach(row => {
+        doc.rect(startX, y, totalWidth, rowHeight).stroke();
+
+        row.forEach((cell, i) => {
+            const x = startX + columnWidths.slice(0, i).reduce((a, b) => a + b, 0);
+            doc.text(String(cell), x + 5, y + 7);
+        });
+
+        y += rowHeight;
+    });
+
+    return y;
+}
+
+// ---------------- MAIN FUNCTION ----------------
 export const generateSalarySlip = async (req, res) => {
     const { payrollId } = req.params;
     const sequelize = await dbConnection();
@@ -33,8 +73,9 @@ export const generateSalarySlip = async (req, res) => {
         const doc = new PDFDocument({ margin: 40 });
 
         res.setHeader("Content-Type", "application/pdf");
-        res.setHeader("Content-Disposition",
-            `attachment; filename=SalarySlip-${data.empukid}.pdf`
+        res.setHeader(
+            "Content-Disposition",
+            `attachment; filename=SalarySlip-${data.name}.pdf`
         );
 
         doc.pipe(res);
@@ -48,42 +89,64 @@ export const generateSalarySlip = async (req, res) => {
         doc.text("------------------------------------------------------------");
         doc.moveDown(1);
 
-        // EMPLOYEE DETAILS
+        // EMPLOYEE INFORMATION TABLE
         doc.fontSize(14).text("Employee Information", { underline: true });
         doc.moveDown(0.5);
 
-        doc.fontSize(12).text(`Employee Name: ${data.name}`);
-        doc.text(`Employee ID: ${data.empukid}`);
-        doc.text(`Email: ${data.email}`);
-        doc.text(`Phone: ${data.phone}`);
-        doc.text(`Position: ${data.position}`);
-        doc.text(`Department: ${data.DepartmentName}`);
-        doc.text(`Join Date: ${data.join_date}`);
-        doc.text(`Payroll Month: ${data.month}`);
+        drawTable(doc, 40, doc.y, {
+            headers: ["Field", "Details"],
+            columnWidths: [180, 280],
+            rowHeight: 25,
+            rows: [
+                ["Employee Name", data.name],
+                ["Employee ID", data.empukid],
+                ["Email", data.email],
+                ["Phone", data.phone],
+                ["Position", data.position],
+                ["Department", data.DepartmentName],
+                ["Join Date", data.join_date],
+                ["Payroll Month", data.month],
+            ],
+        });
+
         doc.moveDown(1);
 
-        // SALARY DETAILS
-        doc.fontSize(14).text("Salary Details", { underline: true });
+        // SALARY DETAILS TABLE
+        doc.fontSize(14).text("Salary Details", { align: "left" });
         doc.moveDown(0.5);
 
-        doc.fontSize(12).text(`Basic Salary: ₹${data.basic}`);
-        doc.text(`HRA: ₹${data.hra}`);
-        doc.text(`Bonus: ₹${data.bonus}`);
-        doc.text(`Deductions: ₹${data.deduction}`);
-        doc.text(`Gross Salary: ₹${data.gross_salary}`);
-        doc.text(`Net Salary: ₹${data.net_salary}`);
+        drawTable(doc, 40, doc.y, {
+            headers: ["Component", "Amount"],
+            columnWidths: [180, 280],
+            rowHeight: 25,
+            rows: [
+                ["Basic Salary", data.basic],
+                ["HRA", data.hra],
+                ["Bonus", data.bonus],
+                ["Deductions", data.deduction],
+                ["Gross Salary", data.gross_salary],
+                ["Net Salary", data.net_salary],
+            ],
+        });
+
         doc.moveDown(1);
 
-        // ATTENDANCE
+        // ATTENDANCE TABLE
         doc.fontSize(14).text("Attendance Summary", { underline: true });
         doc.moveDown(0.5);
 
-        doc.fontSize(12).text(`Total Days in Month: ${data.total_days}`);
-        doc.text(`Present Days: ${data.present_days}`);
-        doc.text(`Absent Days: ${data.total_days - data.present_days}`);
-        doc.moveDown(1);
+        drawTable(doc, 40, doc.y, {
+            headers: ["Metric", "Value"],
+            columnWidths: [180, 280],
+            rowHeight: 25,
+            rows: [
+                ["Total Days", data.total_days],
+                ["Present Days", data.present_days],
+                ["Absent Days", data.total_days - data.present_days],
+            ],
+        });
 
-        // FOOTER
+        doc.moveDown(1);
         doc.text("------------------------------------------------------------");
         doc.text("This is a system-generated salary slip and does not require signature.");
 
