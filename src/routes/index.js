@@ -16,4 +16,4 @@ router.use("/salary", salaryRouter)
 router.use("/payroll", payrollerRouter)
 router.use("/salaryslip", salaryslipRouter)
 
-export default router
+export default router   

@@ -1,46 +1,25 @@
 import { dbConnection } from "../config/db.js";
+import fs from "fs"
 
 
 export const createEmp = async (req, res) => {
-    const { empukid, name, email, position, salary, phone, join_date, DepartmentID, Master = "" } = req.body;
-    const empphoto =  req.files.empphoto[0]?.filename || null;
+    const { empukid, name, email, position, salary, phone, join_date, DepartmentID } = req.body;
+    const empphoto = req.files.empphoto[0]?.filename || null;
 
     const sequelize = await dbConnection();
 
     try {
 
-        // if (flag === "A") {
-        //     const [emailCheck] = await sequelize.query(
-        //         `SELECT email FROM emp WHERE email = :email`,
-        //         { replacements: { email } }
-        //     );
-
-        //     if (emailCheck.length > 0) {
-        //         return res.status(400).json({
-        //             error: "Email already exists",
-        //             Success: false
-        //         });
-        //     }
-        // }
-
-        let query = "";
-
-        // if (flag === "U") {
-        //     query += ` 
-        //     DELETE FROM emp WHERE empukid = :empukid;
-        //     `;
-        // }
-
-        query += `
+        let  query = `
         INSERT INTO emp
-        (empukid, name, email, position, salary, phone, join_date, DepartmentID, empphoto, Master)
+        (empukid, name, email, position, salary, phone, join_date, DepartmentID, empphoto )
         VALUES
-        (:empukid, :name, :email, :position, :salary, :phone, :join_date, :DepartmentID, :empphoto, :Master);
+        (:empukid, :name, :email, :position, :salary, :phone, :join_date, :DepartmentID, :empphoto );
         `;
 
         await sequelize.query(query, {
             replacements: {
-                empukid, name, email, position, salary, phone, join_date, DepartmentID, empphoto, Master
+                empukid, name, email, position, salary, phone, join_date, DepartmentID, empphoto
             },
         });
 
@@ -57,8 +36,64 @@ export const createEmp = async (req, res) => {
 };
 
 export const updateEmp = async (req, res) => {
-    
-}
+    const { empukid, name, email, position, salary, phone, join_date, DepartmentID } = req.body
+    const sequelize = await dbConnection()
+
+    try {
+        const [oldPhoto] = await sequelize.query(
+            "select empphoto from emp where empukid = :empukid", {
+            replacements: { empukid }
+        }
+        );
+
+        console.log('oldPhoto :>> ', oldPhoto);
+
+        const newFile = req.files.empphoto?.[0]?.filename || req?.body?.empphoto;
+
+        console.log("New File => ", newFile);
+
+        const result = await sequelize.query(
+            `UPDATE emp SET
+          name = :name, 
+          email = :email, 
+          position = :position, 
+          salary = :salary, 
+          phone = :phone, 
+          join_date = :join_date, 
+          DepartmentID = :DepartmentID,
+          empphoto = :empphoto
+        WHERE empukid = :empukid;`,
+            {
+                replacements: {
+                    empukid,
+                    name,
+                    empphoto: newFile,
+                    email,
+                    position,
+                    salary,
+                    phone,
+                    join_date,
+                    DepartmentID,
+                },
+            }
+        );
+
+        if (req.files.empphoto && !req?.body?.empphoto) {
+            await fs.unlinkSync("./media/" + oldPhoto[0].empphoto);
+        }
+
+        res.status(200).json({
+            message: "Employee Updated Successfully",
+            updatedFile: newFile,
+            Success: true
+        });
+    } catch (error) {
+        res.status(500).json({ error: " Database Error ", Success: false });
+        console.error("Error updating document:", error);
+    } finally {
+        sequelize.close()
+    }
+};
 
 export const getEmp = async (req, res) => {
     const { empukid, name, position, salary, page, pageSize } = req.query;
@@ -126,19 +161,32 @@ export const getEmp = async (req, res) => {
     } finally {
         await sequelize.close()
     }
-}
+};
 
 export const deleteEmp = async (req, res) => {
     const { empukid } = req.params;
     const sequelize = await dbConnection()
 
     try {
-        const query = `Delete From emp where empukid = :empukid;`
-        const result = await sequelize.query(query, { replacements: { empukid } });
+        const [photo] = await sequelize.query(`Select empphoto from emp where empukid = :empukid`, {
+            replacements: { 
+                empukid
+            },
+        })
+
+        // console.log('photo :>> ', photo);
+
+        if (photo[0].empphoto) {
+            await fs.unlinkSync(`./media/${photo[0].empphoto}`)
+        }
+    
+        const result = await sequelize.query(`Delete From emp where empukid = :empukid;`, { replacements: { empukid } });
         res.status(200).json({ message: "Employee delete successFully", Success: true })
     } catch (error) {
         res.status(500).json({ message: error.message, Success: false })
     } finally {
         await sequelize.close()
     }
-}
+};
+
+

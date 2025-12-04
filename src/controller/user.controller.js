@@ -74,7 +74,8 @@ export const forgetPassword = async (req, res) => {
         res.status(200).json({ message: "Password Update SuccessFully" })
 
     } catch (error) {
-        res.status(500).json({ message: "Database Error " })
+        res.status(500).json({ message: "Database Error" })
         console.log(error);
     }
 }
+

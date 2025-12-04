@@ -7,11 +7,11 @@ import { createEmpSchema, deleteEmpSchema } from "../validation/emp.validation.j
 
 const router = Router()
 
-router.get("/getemp", getEmp)
+router.get("/getemp", getEmp) 
 
-router.post("/AddEmp/:Master", authMiddleware, validate(createEmpSchema), upload, createEmp)
+router.post("/AddEmp", upload, createEmp) 
 
-router.put("/update/:Master", authMiddleware, validate(createEmpSchema), upload, updateEmp)
+router.put("/update", upload, updateEmp) 
 
 // router.put("/empupdate/:id", async (req, res) => {
 //     const { name, position, salary } = req.body
@@ -24,6 +24,6 @@ router.put("/update/:Master", authMiddleware, validate(createEmpSchema), upload,
 //     }
 // })
 
-router.delete("/empdelete/:empukid", validate(deleteEmpSchema), deleteEmp) 
+router.delete("/empdelete/:empukid", validate(deleteEmpSchema), deleteEmp)  
 
-export default router
+export default router 
