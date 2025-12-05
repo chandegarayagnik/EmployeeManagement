@@ -63,18 +63,22 @@ export const forgetPassword = async (req, res) => {
             return res.status(400).json({ error: "Password And Moblie Is Required", Success: false })
         }
 
-        const result = await sequelize.query(`update users set password = :password where mobile = :moblie;`,
+        const [result] = await sequelize.query(`update users set password = :password where mobile = :mobile;`,
             {
                 replacements: { password, mobile },
             }
-        )   
+        )
+
+        if(result) {
+            return res.status(404).json({ message : "Mobile Number Not Found "});
+        }
 
         console.log("Result => ", result);
 
-        res.status(200).json({ message: "Password Update SuccessFully" })
+        res.status(200).json({ message: "Password Update SuccessFully", Success: true })
 
     } catch (error) {
-        res.status(500).json({ message: "Database Error" })
+        res.status(500).json({ message: "Database Error", Success: false })
         console.log(error);
     }
 }

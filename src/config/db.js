@@ -30,4 +30,4 @@ export const dbConnection = async () => {
     }
 }
 
-dbConnection()
+dbConnection()  

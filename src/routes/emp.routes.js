@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getEmp, createEmp, updateEmp, deleteEmp } from "../controller/emp.controller.js";
+import { getEmp, getEmpPhoto, createEmp, updateEmp, deleteEmp } from "../controller/emp.controller.js";
 import authMiddleware from "../middleware/auth.middleware.js"
 import { validate } from "../middleware/validate.js";
 import { upload } from "../middleware/multer.middleware.js";
@@ -7,11 +7,13 @@ import { createEmpSchema, deleteEmpSchema } from "../validation/emp.validation.j
 
 const router = Router()
 
-router.get("/getemp", getEmp) 
+router.get("/getemp", getEmp)
 
-router.post("/AddEmp", upload, createEmp) 
+router.get("/getempphoto/:empukid", getEmpPhoto)
 
-router.put("/update", upload, updateEmp) 
+router.post("/AddEmp", upload, createEmp)
+
+router.put("/update", upload, updateEmp)
 
 // router.put("/empupdate/:id", async (req, res) => {
 //     const { name, position, salary } = req.body
@@ -24,6 +26,6 @@ router.put("/update", upload, updateEmp)
 //     }
 // })
 
-router.delete("/empdelete/:empukid", validate(deleteEmpSchema), deleteEmp)  
+router.delete("/empdelete/:empukid", validate(deleteEmpSchema), deleteEmp)
 
 export default router 

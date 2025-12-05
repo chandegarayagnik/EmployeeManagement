@@ -1,5 +1,6 @@
 import { dbConnection } from "../config/db.js";
 import fs from "fs"
+import path from "path";
 
 
 export const createEmp = async (req, res) => {
@@ -10,7 +11,7 @@ export const createEmp = async (req, res) => {
 
     try {
 
-        let  query = `
+        let query = `
         INSERT INTO emp
         (empukid, name, email, position, salary, phone, join_date, DepartmentID, empphoto )
         VALUES
@@ -163,13 +164,41 @@ export const getEmp = async (req, res) => {
     }
 };
 
+export const getEmpPhoto = async (req, res) => {
+    try {
+        const { empukid } = req.params;
+        const sequelize = await dbConnection()
+
+        const [results] = await sequelize.query(
+            "SELECT empphoto FROM emp WHERE empukid = :empukid",
+            {
+                replacements: { empukid },
+            }
+        );
+
+        console.log('results :>> ', results);
+
+        if (!results) {
+            return res.status(404).json({ message: "Employee Photo Not Found" });
+        }
+
+        const filePath = `\media\/${results[0].empphoto}`;
+
+        // console.log('filePath :>> ', filePath);
+
+        return res.download(filePath);  
+    } catch (err) {
+        res.status(500).send(err.message);
+    }
+};
+
 export const deleteEmp = async (req, res) => {
     const { empukid } = req.params;
     const sequelize = await dbConnection()
 
     try {
         const [photo] = await sequelize.query(`Select empphoto from emp where empukid = :empukid`, {
-            replacements: { 
+            replacements: {
                 empukid
             },
         })
@@ -179,8 +208,13 @@ export const deleteEmp = async (req, res) => {
         if (photo[0].empphoto) {
             await fs.unlinkSync(`./media/${photo[0].empphoto}`)
         }
-    
-        const result = await sequelize.query(`Delete From emp where empukid = :empukid;`, { replacements: { empukid } });
+
+        const [result] = await sequelize.query(`Delete From emp where empukid = :empukid;`, { replacements: { empukid } });
+
+        if (result) {
+            return res.status(404).json({ message: "User Not Found" })
+        }
+
         res.status(200).json({ message: "Employee delete successFully", Success: true })
     } catch (error) {
         res.status(500).json({ message: error.message, Success: false })

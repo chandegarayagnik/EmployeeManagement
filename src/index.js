@@ -4,10 +4,10 @@ import cors from "cors"
 import "../src/config/db.js"
 import "dotenv/config"
 
-
 const app = express()
 const port = process.env.PORT || 8080
 
+app.use('/', express.static('./media'));
 app.use(express.json())
 app.use(cors());
 app.use("/api", router)
