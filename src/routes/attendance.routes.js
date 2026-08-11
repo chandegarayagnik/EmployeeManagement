@@ -1,14 +1,13 @@
 import express from "express";
 import { getAttendance, listAttendanceById, createAttendance, deleteAttendance } from "../controller/attendance.controller.js";
-import authMiddleware from "../middleware/auth.middleware.js";
+import { authenticateJWT } from "../middleware/auth.middleware.js";
+import { attachDatabase } from "../middleware/db.middleware.js";
 
 const router = express.Router();
 
-router.use(authMiddleware);
-
-router.get("/getattendance", getAttendance);
-router.get("/getbyid/:id", listAttendanceById);
-router.post("/addandupdateattendance", createAttendance);
-router.delete("/deleteattendance/:id", deleteAttendance);
+router.get("/getattendance", authenticateJWT, attachDatabase, getAttendance);
+router.get("/getbyid/:id", authenticateJWT, attachDatabase, listAttendanceById);
+router.post("/addandupdateattendance", authenticateJWT, attachDatabase, createAttendance);
+router.delete("/deleteattendance/:id", authenticateJWT, attachDatabase, deleteAttendance);
 
 export default router;

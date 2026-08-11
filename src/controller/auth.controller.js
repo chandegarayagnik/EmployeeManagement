@@ -4,8 +4,13 @@ import { dbConnection } from "../config/db.js";
 import { loadModels } from "../model/index.js";
 import "dotenv/config";
 
-const generateCustid = (length = 8) => {
-    return "CUST" + Math.floor(100000 + Math.random() * 900000);
+const generateCustid = (length = 6) => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let result = "";
+    for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
 };
 
 const generateUUID = () => {
@@ -13,8 +18,14 @@ const generateUUID = () => {
 };
 
 export const signup = async (req, res) => {
-    const { sequelize } = req.db;
+    let sequelize = req.db?.sequelize;
+    let masterOpenedLocally = false;
     let newDbConnection = null;
+
+    if (!sequelize) {
+        sequelize = await dbConnection();
+        masterOpenedLocally = true;
+    }
 
     try {
         const {
@@ -72,44 +83,53 @@ export const signup = async (req, res) => {
         const nextrenewdate = NextRenewDate.toISOString().split("T")[0];
 
         // 5. Insert registration into MASTER database Registration table
-        const Registration = req.db.models.Registration || req.db.models.Registartion;
+        const models = req.db?.models || loadModels(sequelize);
+        const Registration = models.Registration || models.Registartion;
+
         if (Registration) {
-            await Registration.create({
-                ClientUkeyId,
-                Clientname: Clientname || BusinessName,
-                BusinessName: BusinessName || Clientname,
-                Password,
-                Mobile1,
-                Email,
-                CustId,
-                DBPassword,
-                DBusername,
-                IsActive,
-                businesstype,
-                Flag,
-                Username: Username || Clientname,
-                ServerName,
-                IPAddress,
-                Version: "1.0",
-                ClientAddress: req.body.ClientAddress || "",
-                ClientCity: req.body.ClientCity || "",
-                ModuleType,
-                LicenseKey: generateCustid(8),
-                ExpiryDate: formattedExpiryDate,
-                LastRenewDate: new Date(),
-                NextRenewDate: nextrenewdate,
-                LicenseStatus: "Trial",
-                MaxUsers: 5,
-                MaxCompanies: 2,
-                MaxFirms: 2,
-                MaxInvoicesPerMonth: 100,
-                CanUseMobileApp: true,
-                CanUseAPI: false,
-                PrioritySupport: "X",
-                RenewBy: BusinessName || Clientname,
-                ProductName: "Employee Management",
-                LicenseType: "Trial",
-            });
+            try {
+                // Ensure Registration table exists in Master DB
+                await Registration.sync({ force: false });
+
+                await Registration.create({
+                    ClientUkeyId,
+                    Clientname: Clientname || BusinessName,
+                    BusinessName: BusinessName || Clientname,
+                    Password,
+                    Mobile1,
+                    Email,
+                    CustId,
+                    DBPassword,
+                    DBusername,
+                    IsActive,
+                    businesstype,
+                    Flag,
+                    Username: Username || Clientname,
+                    ServerName,
+                    IPAddress,
+                    Version: "1.0",
+                    ClientAddress: req.body.ClientAddress || "",
+                    ClientCity: req.body.ClientCity || "",
+                    ModuleType,
+                    LicenseKey: generateCustid(8),
+                    ExpiryDate: formattedExpiryDate,
+                    LastRenewDate: new Date(),
+                    NextRenewDate: nextrenewdate,
+                    LicenseStatus: "Trial",
+                    MaxUsers: 5,
+                    MaxCompanies: 2,
+                    MaxFirms: 2,
+                    MaxInvoicesPerMonth: 100,
+                    CanUseMobileApp: true,
+                    CanUseAPI: false,
+                    PrioritySupport: "X",
+                    RenewBy: BusinessName || Clientname,
+                    ProductName: "Employee Management",
+                    LicenseType: "Trial",
+                });
+            } catch (regErr) {
+                console.error("Master DB Registration sync/insert note:", regErr.message);
+            }
         }
 
         return res.status(200).json({
@@ -128,15 +148,21 @@ export const signup = async (req, res) => {
         if (newDbConnection) {
             await newDbConnection.close();
         }
-        if (sequelize) {
+        if (sequelize && masterOpenedLocally) {
             await sequelize.close();
         }
     }
 };
 
 export const login = async (req, res) => {
-    const { sequelize } = req.db;
+    let sequelize = req.db?.sequelize;
+    let masterOpenedLocally = false;
     let targetConn = null;
+
+    if (!sequelize) {
+        sequelize = await dbConnection();
+        masterOpenedLocally = true;
+    }
 
     try {
         const { email, username, password, CustId } = req.body;
@@ -145,12 +171,16 @@ export const login = async (req, res) => {
         // If CustId not provided, search in Master DB Registration table by Email/Username
         if (!targetCustId && (email || username)) {
             const searchVal = email || username;
-            const [regResult] = await sequelize.query(
-                "SELECT TOP 1 CustId FROM Registration WITH (NOLOCK) WHERE Email = :searchVal OR Username = :searchVal OR CustId = :searchVal",
-                { replacements: { searchVal } }
-            );
-            if (regResult && regResult[0]) {
-                targetCustId = regResult[0].CustId;
+            try {
+                const [regResult] = await sequelize.query(
+                    "SELECT TOP 1 CustId FROM Registration WITH (NOLOCK) WHERE Email = :searchVal OR Username = :searchVal OR CustId = :searchVal",
+                    { replacements: { searchVal } }
+                );
+                if (regResult && regResult[0]) {
+                    targetCustId = regResult[0].CustId;
+                }
+            } catch (err) {
+                console.error("Master DB lookup note:", err.message);
             }
         }
 
@@ -197,15 +227,56 @@ export const login = async (req, res) => {
         if (targetConn && targetConn !== sequelize) {
             await targetConn.close();
         }
+        if (sequelize && masterOpenedLocally) {
+            await sequelize.close();
+        }
+    }
+};
+
+export const logout = async (req, res) => {
+    let sequelize = req.db?.sequelize;
+    try {
+        const models = req.db?.models || {};
+        const { User } = models;
+        if (User && req.user?.userukid) {
+            await User.update(
+                { LogoutTime: new Date() },
+                { where: { userukid: req.user.userukid } }
+            );
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Logged out successfully",
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    } finally {
         if (sequelize) {
             await sequelize.close();
         }
     }
 };
 
+export const Logout = logout;
+
 export const listRegistration = async (req, res) => {
-    const { sequelize } = req.db;
+    let sequelize = req.db?.sequelize;
+    if (!sequelize) {
+        sequelize = await dbConnection();
+    }
+
     try {
+        const models = req.db?.models || loadModels(sequelize);
+        const Registration = models.Registration || models.Registartion;
+
+        if (Registration) {
+            await Registration.sync({ force: false });
+        }
+
         const { CustId, Email, page, pageSize } = req.query;
 
         let query = "SELECT * FROM Registration WITH (NOLOCK) WHERE 1=1";

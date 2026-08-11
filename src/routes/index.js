@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { attachDatabase } from "../middleware/db.middleware.js";
 import authRouter from "./auth.routes.js";
 import userRouter from "./user.routes.js";
 import empRouter from "./emp.routes.js";
@@ -10,9 +9,6 @@ import payrollerRouter from "./payroll.routes.js";
 import salaryslipRouter from "./salarySlip.routes.js";
 
 const router = Router();
-
-// Apply database attachment middleware to all routes
-router.use(attachDatabase);
 
 router.use("/auth", authRouter);
 router.use("/user", userRouter);

@@ -1,10 +1,13 @@
 import { Router } from "express";
-import { signup, login, listRegistration } from "../controller/auth.controller.js";
+import { signup, login, Logout, listRegistration } from "../controller/auth.controller.js";
+import { authenticateJWT } from "../middleware/auth.middleware.js";
+import { attachDatabase } from "../middleware/db.middleware.js";
 
 const router = Router();
 
-router.post("/signup", signup);
-router.post("/login", login);
-router.get("/registrations", listRegistration);
+router.post("/signup", attachDatabase, signup);
+router.post("/login", attachDatabase, login);
+router.post("/logout", authenticateJWT, attachDatabase, Logout);
+router.get("/registrations", authenticateJWT, attachDatabase, listRegistration);
 
 export default router;
