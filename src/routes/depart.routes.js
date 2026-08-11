@@ -1,14 +1,16 @@
 import { Router } from "express";
 import { validate } from "../middleware/validate.js";
+import authMiddleware from "../middleware/auth.middleware.js";
 import { createDepartmentSchema, deleteDepartmentShema } from "../validation/depart.validation.js";
-import { getdepartment, createdepartment, deletedepartment } from "../controller/depart.controller.js";
+import { getdepartment, listDepartmentById, createdepartment, deletedepartment } from "../controller/depart.controller.js";
 
-const router = Router()
+const router = Router();
 
-router.use("/getdepart", getdepartment) 
+router.use(authMiddleware);
 
-router.use("/AddAndUpdateDepart", validate(createDepartmentSchema), createdepartment)
+router.get("/getdepart", getdepartment);
+router.get("/getbyid/:DepartmentID", listDepartmentById);
+router.post("/AddAndUpdateDepart", validate(createDepartmentSchema), createdepartment);
+router.delete("/deletedepart/:DepartmentID", validate(deleteDepartmentShema), deletedepartment);
 
-router.use("/deletedepart/:DepartmentID", validate(deleteDepartmentShema), deletedepartment)
-
-export default router
+export default router;

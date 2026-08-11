@@ -25,7 +25,7 @@ export const signup = async (req, res) => {
             Mobile1,
             Email,
             DBPassword = "",
-            DBusername = "SA",
+            DBusername = "",
             IsActive = true,
             businesstype = "General",
             Flag = "A",
@@ -44,7 +44,7 @@ export const signup = async (req, res) => {
             console.error("Database creation note/error:", dbErr.message);
         }
 
-        // 2. Connect to the new database
+        // 2. Connect to the new tenant database
         newDbConnection = await dbConnection(CustId);
         const newModels = loadModels(newDbConnection);
 
@@ -72,7 +72,7 @@ export const signup = async (req, res) => {
         const nextrenewdate = NextRenewDate.toISOString().split("T")[0];
 
         // 5. Insert registration into MASTER database Registration table
-        const { Registration } = req.db.models;
+        const Registration = req.db.models.Registration || req.db.models.Registartion;
         if (Registration) {
             await Registration.create({
                 ClientUkeyId,
@@ -134,153 +134,7 @@ export const signup = async (req, res) => {
     }
 };
 
-export const listUser = async (req, res) => {
-    const { sequelize } = req.db;
-    try {
-        const { userukid, username, email, mobile, page, pageSize } = req.query;
-
-        let query = "SELECT * FROM users WITH (NOLOCK) WHERE 1=1";
-        let countQuery = "SELECT COUNT(*) AS total FROM users WITH (NOLOCK) WHERE 1=1";
-        const replacements = {};
-
-        if (userukid) {
-            const condition = " AND userukid = :userukid";
-            query += condition;
-            countQuery += condition;
-            replacements.userukid = userukid;
-        }
-        if (username) {
-            const condition = " AND username LIKE :username";
-            query += condition;
-            countQuery += condition;
-            replacements.username = `%${username}%`;
-        }
-        if (email) {
-            const condition = " AND email = :email";
-            query += condition;
-            countQuery += condition;
-            replacements.email = email;
-        }
-        if (mobile) {
-            const condition = " AND mobile = :mobile";
-            query += condition;
-            countQuery += condition;
-            replacements.mobile = mobile;
-        }
-
-        query += " ORDER BY id DESC";
-
-        const [countResult] = await sequelize.query(countQuery, { replacements });
-        const totalCount = countResult[0]?.total || 0;
-
-        const pageNum = parseInt(page, 10);
-        const pageSizeNum = parseInt(pageSize, 10);
-
-        if (!isNaN(pageNum) && !isNaN(pageSizeNum) && pageNum > 0 && pageSizeNum > 0) {
-            const offset = (pageNum - 1) * pageSizeNum;
-            query += " OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY";
-            replacements.offset = offset;
-            replacements.limit = pageSizeNum;
-        }
-
-        const [results] = await sequelize.query(query, { replacements });
-
-        return res.status(200).json({
-            data: results,
-            total: totalCount,
-            page: pageNum || null,
-            limit: pageSizeNum || null,
-            success: true,
-        });
-    } catch (error) {
-        console.error("USER LISTING ERROR:", error);
-        return res.status(500).json({
-            success: false,
-            message: "Database error",
-            error: error.message,
-        });
-    } finally {
-        if (sequelize) {
-            await sequelize.close();
-        }
-    }
-};
-
-export const listUserById = async (req, res) => {
-    const { sequelize } = req.db;
-    try {
-        const { userukid } = req.params;
-        const [result] = await sequelize.query(
-            "SELECT * FROM users WITH (NOLOCK) WHERE userukid = :userukid OR id = :userukid",
-            { replacements: { userukid } }
-        );
-
-        if (!result || result.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: "User not found",
-            });
-        }
-
-        return res.status(200).json({
-            success: true,
-            data: result[0],
-        });
-    } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: error.message,
-        });
-    } finally {
-        if (sequelize) {
-            await sequelize.close();
-        }
-    }
-};
-
-export const createregister = async (req, res) => {
-    const { User } = req.db.models;
-    const { sequelize } = req.db;
-    try {
-        const flag = req.body.Flag || req.body.flag || "A";
-
-        if (flag === "A") {
-            await User.create({
-                ...req.body,
-            });
-            return res.status(200).json({
-                success: true,
-                message: "User registered successfully!",
-            });
-        } else if (flag === "U") {
-            await User.update(
-                { ...req.body },
-                { where: { userukid: req.body.userukid } }
-            );
-
-            return res.status(200).json({
-                success: true,
-                message: "User Update Successfully",
-            });
-        } else {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid Flag value. Use 'A' for Add and 'U' for Update.",
-            });
-        }
-    } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: error.message,
-        });
-    } finally {
-        if (sequelize) {
-            await sequelize.close();
-        }
-    }
-};
-
-export const createlogin = async (req, res) => {
+export const login = async (req, res) => {
     const { sequelize } = req.db;
     let targetConn = null;
 
@@ -349,65 +203,59 @@ export const createlogin = async (req, res) => {
     }
 };
 
-export const forgetPassword = async (req, res) => {
-    const { User } = req.db.models;
+export const listRegistration = async (req, res) => {
     const { sequelize } = req.db;
     try {
-        const { password, mobile } = req.body;
+        const { CustId, Email, page, pageSize } = req.query;
 
-        if (!password || !mobile) {
-            return res.status(400).json({ success: false, message: "Password And Mobile Is Required" });
+        let query = "SELECT * FROM Registration WITH (NOLOCK) WHERE 1=1";
+        let countQuery = "SELECT COUNT(*) AS total FROM Registration WITH (NOLOCK) WHERE 1=1";
+        const replacements = {};
+
+        if (CustId) {
+            const condition = " AND CustId = :CustId";
+            query += condition;
+            countQuery += condition;
+            replacements.CustId = CustId;
         }
 
-        const [affectedCount] = await User.update(
-            { password },
-            { where: { mobile } }
-        );
-
-        if (affectedCount === 0) {
-            return res.status(404).json({ success: false, message: "Mobile Number Not Found" });
+        if (Email) {
+            const condition = " AND Email = :Email";
+            query += condition;
+            countQuery += condition;
+            replacements.Email = Email;
         }
+
+        query += " ORDER BY ClientId DESC";
+
+        const [countResult] = await sequelize.query(countQuery, { replacements });
+        const totalCount = countResult[0]?.total || 0;
+
+        const pageNum = parseInt(page, 10);
+        const pageSizeNum = parseInt(pageSize, 10);
+
+        if (!isNaN(pageNum) && !isNaN(pageSizeNum) && pageNum > 0 && pageSizeNum > 0) {
+            const offset = (pageNum - 1) * pageSizeNum;
+            query += " OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY";
+            replacements.offset = offset;
+            replacements.limit = pageSizeNum;
+        }
+
+        const [results] = await sequelize.query(query, { replacements });
 
         return res.status(200).json({
+            data: results,
+            total: totalCount,
+            page: pageNum || null,
+            limit: pageSizeNum || null,
             success: true,
-            message: "Password Update Successfully",
         });
     } catch (error) {
+        console.error("REGISTRATION LISTING ERROR:", error);
         return res.status(500).json({
             success: false,
-            message: error.message,
-        });
-    } finally {
-        if (sequelize) {
-            await sequelize.close();
-        }
-    }
-};
-
-export const deleteUser = async (req, res) => {
-    const { User } = req.db.models;
-    const { sequelize } = req.db;
-    try {
-        const { userukid } = req.params;
-        const result = await User.destroy({
-            where: { userukid },
-        });
-
-        if (result === 0) {
-            return res.status(404).json({
-                success: false,
-                message: "User not found",
-            });
-        }
-
-        return res.status(200).json({
-            success: true,
-            message: "User deleted successfully",
-        });
-    } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: error.message,
+            message: "Database error",
+            error: error.message,
         });
     } finally {
         if (sequelize) {

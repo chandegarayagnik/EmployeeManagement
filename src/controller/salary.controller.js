@@ -1,145 +1,185 @@
-import { dbConnection } from "../config/db.js";
-
-
-// ===================== GET Salary with JOIN ===========================
 export const getSalary = async (req, res) => {
-    const { empukid, page, pageSize } = req.query;
-    const sequelize = await dbConnection();
-
+    const { sequelize } = req.db;
     try {
+        const { empukid, page, pageSize } = req.query;
+
+        // 1. INITIALIZE QUERIES
         let query = `
-            SELECT 
-                s.*, 
-                e.name, 
-                e.email, 
-                e.position
-            FROM salary s
-            INNER JOIN emp e ON s.empukid = e.empukid
+            SELECT s.*, e.name, e.email, e.position 
+            FROM salary s WITH (NOLOCK)
+            LEFT JOIN emp e WITH (NOLOCK) ON s.empukid = e.empukid
             WHERE 1=1
         `;
-
         let countQuery = `
-            SELECT COUNT(*) AS totalCount
-            FROM salary s
-            INNER JOIN emp e ON s.empukid = e.empukid
+            SELECT COUNT(*) AS total 
+            FROM salary s WITH (NOLOCK)
+            LEFT JOIN emp e WITH (NOLOCK) ON s.empukid = e.empukid
             WHERE 1=1
         `;
-
         const replacements = {};
 
+        // 2. DYNAMIC FILTER MAPPING
         if (empukid) {
-            query += " AND s.empukid = :empukid";
-            countQuery += " AND s.empukid = :empukid";
+            const condition = " AND s.empukid = :empukid";
+            query += condition;
+            countQuery += condition;
             replacements.empukid = empukid;
         }
 
+        // 3. ORDER BY
         query += " ORDER BY s.id DESC";
 
+        // 4. GET TOTAL COUNT
+        const [countResult] = await sequelize.query(countQuery, { replacements });
+        const totalCount = countResult[0]?.total || 0;
+
+        // 5. APPLY PAGINATION LOGIC
         const pageNum = parseInt(page, 10);
         const pageSizeNum = parseInt(pageSize, 10);
 
-        if (pageNum > 0 && pageSizeNum > 0) {
+        if (!isNaN(pageNum) && !isNaN(pageSizeNum) && pageNum > 0 && pageSizeNum > 0) {
             const offset = (pageNum - 1) * pageSizeNum;
-            query += ` OFFSET ${offset} ROWS FETCH NEXT ${pageSizeNum} ROWS ONLY`;
+            query += " OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY";
+            replacements.offset = offset;
+            replacements.limit = pageSizeNum;
         }
 
-        const countResult = await sequelize.query(countQuery, { replacements });
-        const totalCount = countResult[0]?.totalCount || 0;
+        // 6. EXECUTE DATA QUERY
+        const [results] = await sequelize.query(query, { replacements });
 
-        const result = await sequelize.query(query, { replacements });
-
-        res.status(200).json({ data: result, totalCount });
-
+        // 7. FINAL RESPONSE
+        return res.status(200).json({
+            data: results,
+            total: totalCount,
+            page: pageNum || null,
+            limit: pageSizeNum || null,
+            success: true,
+        });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error("SALARY LISTING ERROR:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Database error",
+            error: error.message,
+        });
     } finally {
-        await sequelize.close();
+        if (sequelize) {
+            await sequelize.close();
+        }
     }
 };
 
-
-// ===================== CREATE / UPDATE Salary ===========================
-export const createSalary = async (req, res) => {
-    const { id, empukid, hra, bonus, deduction, flag = "A" } = req.body;
-    const sequelize = await dbConnection();
-
+export const listSalaryById = async (req, res) => {
+    const { sequelize } = req.db;
     try {
-
-        if (flag === "A") {
-            const [empukidCheck] = await sequelize.query(
-                `SELECT empukid FROM salary WHERE empukid = :empukid`,
-                { replacements: { empukid } }
-            );
-            
-            if (empukidCheck.length > 0) {
-                return res.status(400).json({
-                    error: "Empukid already exists",
-                    Success: false
-                });
-            }
-        }
-
-        const salaryQuery = `
-        SELECT salary from emp
-        WHERE empukid = :empukid
-        `;
-
-        const [salaryRows] = await sequelize.query(salaryQuery, {
-            replacements: { empukid }
-        });
-
-        const { salary } = salaryRows[0]
-
-        const basic = salary
-
-        let query = "";
-
-        if (flag === "U") {
-            query += `
-                DELETE FROM salary WHERE id = :id;
-            `;
-        }
-
-        query += `
-            INSERT INTO salary
-            (empukid, basic, hra, bonus, deduction)
-            VALUES
-            (:empukid, :basic, :hra, :bonus, :deduction);
-        `;
-
-        await sequelize.query(query, {
-            replacements: { id, empukid, basic, hra, bonus, deduction }
-        });
-
-        res.status(200).json({
-            message: flag === "A" ? "Salary Created Successfully" : "Salary Updated Successfully",
-            Success: true
-        });
-
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    } finally {
-        await sequelize.close();
-    }
-};
-
-
-// ===================== DELETE Salary ===========================
-export const deleteSalary = async (req, res) => {
-    const { id } = req.params;
-    const sequelize = await dbConnection();
-
-    try {
-        await sequelize.query(
-            "DELETE FROM salary WHERE id = :id",
+        const { id } = req.params;
+        const [result] = await sequelize.query(
+            `SELECT s.*, e.name, e.email, e.position 
+             FROM salary s WITH (NOLOCK)
+             LEFT JOIN emp e WITH (NOLOCK) ON s.empukid = e.empukid
+             WHERE s.id = :id`,
             { replacements: { id } }
         );
 
-        res.status(200).json({ message: "Salary deleted successfully", Success: true });
+        if (!result || result.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Salary record not found",
+            });
+        }
 
+        return res.status(200).json({
+            success: true,
+            data: result[0],
+        });
     } catch (error) {
-        res.status(500).json({ message: error.message, Success: false });
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
     } finally {
-        await sequelize.close();
+        if (sequelize) {
+            await sequelize.close();
+        }
+    }
+};
+
+export const createSalary = async (req, res) => {
+    const { Salary, Employee } = req.db.models;
+    const { sequelize } = req.db;
+
+    try {
+        const flag = req.body.Flag || req.body.flag || "A";
+
+        if (flag === "A") {
+            const empRecord = await Employee.findOne({ where: { empukid: req.body.empukid } });
+            const basic = req.body.basic || (empRecord ? empRecord.salary : 0);
+
+            await Salary.create({
+                ...req.body,
+                basic,
+            });
+            return res.status(200).json({
+                success: true,
+                message: "Salary Created Successfully",
+            });
+        } else if (flag === "U") {
+            await Salary.update(
+                { ...req.body },
+                { where: { id: req.body.id } }
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: "Salary Updated Successfully",
+            });
+        } else {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid Flag value. Use 'A' for Add and 'U' for Update.",
+            });
+        }
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    } finally {
+        if (sequelize) {
+            await sequelize.close();
+        }
+    }
+};
+
+export const deleteSalary = async (req, res) => {
+    const { Salary } = req.db.models;
+    const { sequelize } = req.db;
+
+    try {
+        const { id } = req.params;
+        const result = await Salary.destroy({
+            where: { id },
+        });
+
+        if (result === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Salary record not found",
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Salary deleted successfully",
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    } finally {
+        if (sequelize) {
+            await sequelize.close();
+        }
     }
 };

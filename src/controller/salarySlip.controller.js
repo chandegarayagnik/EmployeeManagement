@@ -1,5 +1,4 @@
 import PDFDocument from "pdfkit";
-import { dbConnection } from "../config/db.js";
 
 // ---------------- TABLE HELPER FUNCTION ----------------
 function drawTable(doc, startX, startY, table) {
@@ -26,12 +25,12 @@ function drawTable(doc, startX, startY, table) {
     y += rowHeight;
 
     // Data rows
-    rows.forEach(row => {
+    rows.forEach((row) => {
         doc.rect(startX, y, totalWidth, rowHeight).stroke();
 
         row.forEach((cell, i) => {
             const x = startX + columnWidths.slice(0, i).reduce((a, b) => a + b, 0);
-            doc.text(String(cell), x + 5, y + 7);
+            doc.text(String(cell ?? ""), x + 5, y + 7);
         });
 
         y += rowHeight;
@@ -42,20 +41,20 @@ function drawTable(doc, startX, startY, table) {
 
 // ---------------- MAIN FUNCTION ----------------
 export const generateSalarySlip = async (req, res) => {
-    const { payrollId } = req.params;
-    const sequelize = await dbConnection();
-
+    const { sequelize } = req.db;
     try {
+        const { payrollId } = req.params;
+
         const query = `
             SELECT 
                 p.*, 
                 e.name, e.email, e.position, e.phone, e.join_date,
                 d.DepartmentName,
                 s.basic, s.hra, s.bonus, s.deduction
-            FROM payroll p
-            INNER JOIN emp e ON p.empukid = e.empukid
-            LEFT JOIN department d ON e.DepartmentID = d.DepartmentID
-            LEFT JOIN salary s ON p.empukid = s.empukid
+            FROM payroll p WITH (NOLOCK)
+            LEFT JOIN emp e WITH (NOLOCK) ON p.empukid = e.empukid
+            LEFT JOIN department d WITH (NOLOCK) ON e.DepartmentID = d.DepartmentID
+            LEFT JOIN salary s WITH (NOLOCK) ON p.empukid = s.empukid
             WHERE p.id = :payrollId
         `;
 
@@ -64,7 +63,7 @@ export const generateSalarySlip = async (req, res) => {
         });
 
         if (!rows || rows.length === 0) {
-            return res.status(404).json({ message: "Payroll record not found" });
+            return res.status(404).json({ success: false, message: "Payroll record not found" });
         }
 
         const data = rows[0];
@@ -75,7 +74,7 @@ export const generateSalarySlip = async (req, res) => {
         res.setHeader("Content-Type", "application/pdf");
         res.setHeader(
             "Content-Disposition",
-            `attachment; filename=SalarySlip-${data.name}.pdf`
+            `attachment; filename=SalarySlip-${data.name || "Employee"}.pdf`
         );
 
         doc.pipe(res);
@@ -98,14 +97,14 @@ export const generateSalarySlip = async (req, res) => {
             columnWidths: [180, 280],
             rowHeight: 25,
             rows: [
-                ["Employee Name", data.name],
-                ["Employee ID", data.empukid],
-                ["Email", data.email],
-                ["Phone", data.phone],
-                ["Position", data.position],
-                ["Department", data.DepartmentName],
-                ["Join Date", data.join_date],
-                ["Payroll Month", data.month],
+                ["Employee Name", data.name || ""],
+                ["Employee ID", data.empukid || ""],
+                ["Email", data.email || ""],
+                ["Phone", data.phone || ""],
+                ["Position", data.position || ""],
+                ["Department", data.DepartmentName || ""],
+                ["Join Date", data.join_date ? new Date(data.join_date).toLocaleDateString() : ""],
+                ["Payroll Month", data.month || ""],
             ],
         });
 
@@ -120,12 +119,12 @@ export const generateSalarySlip = async (req, res) => {
             columnWidths: [180, 280],
             rowHeight: 25,
             rows: [
-                ["Basic Salary", data.basic],
-                ["HRA", data.hra],
-                ["Bonus", data.bonus],
-                ["Deductions", data.deduction],
-                ["Gross Salary", data.gross_salary],
-                ["Net Salary", data.net_salary],
+                ["Basic Salary", data.basic || 0],
+                ["HRA", data.hra || 0],
+                ["Bonus", data.bonus || 0],
+                ["Deductions", data.deduction || 0],
+                ["Gross Salary", data.gross_salary || 0],
+                ["Net Salary", data.net_salary || 0],
             ],
         });
 
@@ -140,9 +139,9 @@ export const generateSalarySlip = async (req, res) => {
             columnWidths: [180, 280],
             rowHeight: 25,
             rows: [
-                ["Total Days", data.total_days],
-                ["Present Days", data.present_days],
-                ["Absent Days", data.total_days - data.present_days],
+                ["Total Days", data.total_days || 0],
+                ["Present Days", data.present_days || 0],
+                ["Absent Days", (data.total_days || 0) - (data.present_days || 0)],
             ],
         });
 
@@ -152,9 +151,11 @@ export const generateSalarySlip = async (req, res) => {
 
         doc.end();
     } catch (error) {
-        res.status(500).json({ message: error.message });
-        console.log(error);
+        console.error("Generate Salary Slip Error:", error);
+        return res.status(500).json({ success: false, message: error.message });
     } finally {
-        await sequelize.close();
+        if (sequelize) {
+            await sequelize.close();
+        }
     }
 };

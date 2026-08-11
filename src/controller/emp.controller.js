@@ -1,226 +1,249 @@
-import { dbConnection } from "../config/db.js";
-import fs from "fs"
+import fs from "fs";
 import path from "path";
 
-
-export const createEmp = async (req, res) => {
-    const { empukid, name, email, position, salary, phone, join_date, DepartmentID } = req.body;
-    const empphoto = req.files.empphoto[0]?.filename || null;
-
-    const sequelize = await dbConnection();
-
-    try {
-
-        let query = `
-        INSERT INTO emp
-        (empukid, name, email, position, salary, phone, join_date, DepartmentID, empphoto )
-        VALUES
-        (:empukid, :name, :email, :position, :salary, :phone, :join_date, :DepartmentID, :empphoto );
-        `;
-
-        await sequelize.query(query, {
-            replacements: {
-                empukid, name, email, position, salary, phone, join_date, DepartmentID, empphoto
-            },
-        });
-
-        res.status(200).json({
-            message: "Employee Create SuccessFully", Success: true
-        });
-
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: err.message, Success: false });
-    } finally {
-        await sequelize.close();
-    }
-};
-
-export const updateEmp = async (req, res) => {
-    const { empukid, name, email, position, salary, phone, join_date, DepartmentID } = req.body
-    const sequelize = await dbConnection()
-
-    try {
-        const [oldPhoto] = await sequelize.query(
-            "select empphoto from emp where empukid = :empukid", {
-            replacements: { empukid }
-        }
-        );
-
-        console.log('oldPhoto :>> ', oldPhoto);
-
-        const newFile = req.files.empphoto?.[0]?.filename || req?.body?.empphoto;
-
-        console.log("New File => ", newFile);
-
-        const result = await sequelize.query(
-            `UPDATE emp SET
-          name = :name, 
-          email = :email, 
-          position = :position, 
-          salary = :salary, 
-          phone = :phone, 
-          join_date = :join_date, 
-          DepartmentID = :DepartmentID,
-          empphoto = :empphoto
-        WHERE empukid = :empukid;`,
-            {
-                replacements: {
-                    empukid,
-                    name,
-                    empphoto: newFile,
-                    email,
-                    position,
-                    salary,
-                    phone,
-                    join_date,
-                    DepartmentID,
-                },
-            }
-        );
-
-        if (req.files.empphoto && !req?.body?.empphoto) {
-            await fs.unlinkSync("./media/" + oldPhoto[0].empphoto);
-        }
-
-        res.status(200).json({
-            message: "Employee Updated Successfully",
-            updatedFile: newFile,
-            Success: true
-        });
-    } catch (error) {
-        res.status(500).json({ error: " Database Error ", Success: false });
-        console.error("Error updating document:", error);
-    } finally {
-        sequelize.close()
-    }
-};
-
 export const getEmp = async (req, res) => {
-    const { empukid, name, position, salary, page, pageSize } = req.query;
-    const sequelize = await dbConnection()
+    const { sequelize } = req.db;
     try {
+        const { empukid, name, position, salary, DepartmentID, page, pageSize } = req.query;
 
-        let query = `SELECT * FROM emp WHERE 1=1`;
-        let countQuery = `SELECT COUNT(*) as totalCount FROM emp WHERE 1=1`;
+        // 1. INITIALIZE QUERIES
+        let query = "SELECT * FROM emp WITH (NOLOCK) WHERE 1=1";
+        let countQuery = "SELECT COUNT(*) AS total FROM emp WITH (NOLOCK) WHERE 1=1";
         const replacements = {};
 
+        // 2. DYNAMIC FILTER MAPPING
         if (empukid) {
-            query += ` AND empukid= :empukid`;
-            countQuery += ` AND empukid= :empukid`;
+            const condition = " AND empukid = :empukid";
+            query += condition;
+            countQuery += condition;
             replacements.empukid = empukid;
-            console.log("Id => ", query);
         }
 
         if (name) {
-            query += ` AND name LIKE :name`;
-            countQuery += ` AND name LIKE :name`;
-            replacements.name = `%${name}%`
-            console.log("Name => ", query);
-            console.log(countQuery);
-
+            const condition = " AND name LIKE :name";
+            query += condition;
+            countQuery += condition;
+            replacements.name = `%${name}%`;
         }
 
         if (position) {
-            query += ` AND position LIKE :position`;
-            countQuery += ` AND position LIKE :position`;
-            replacements.position = `%${position}%`
-            console.log("Position => ", query);
+            const condition = " AND position LIKE :position";
+            query += condition;
+            countQuery += condition;
+            replacements.position = `%${position}%`;
         }
 
         if (salary) {
-            query += ` AND salary= :salary`;
-            countQuery += ` AND salary= :salary`
-            replacements.salary = salary
-            console.log("salary => ", query);
-
+            const condition = " AND salary = :salary";
+            query += condition;
+            countQuery += condition;
+            replacements.salary = salary;
         }
 
+        if (DepartmentID) {
+            const condition = " AND DepartmentID = :DepartmentID";
+            query += condition;
+            countQuery += condition;
+            replacements.DepartmentID = DepartmentID;
+        }
+
+        // 3. ORDER BY
         query += " ORDER BY empukid DESC";
 
-        const [countresult] = await sequelize.query(countQuery, { replacements });
-        const totalCount = countresult[0]?.totalCount || 0;
+        // 4. GET TOTAL COUNT
+        const [countResult] = await sequelize.query(countQuery, { replacements });
+        const totalCount = countResult[0]?.total || 0;
 
-        // Apply The Pagination 
-        const pageNum = parseInt(page, 10)
-        const pageSizeNum = parseInt(pageSize, 10)
+        // 5. APPLY PAGINATION LOGIC
+        const pageNum = parseInt(page, 10);
+        const pageSizeNum = parseInt(pageSize, 10);
 
         if (!isNaN(pageNum) && !isNaN(pageSizeNum) && pageNum > 0 && pageSizeNum > 0) {
-            const offset = (pageNum - 1) * pageSizeNum
-            query += ` OFFSET ${offset} ROWS FETCH NEXT ${pageSizeNum} ROWS ONLY `;
-            replacements.offset = offset
-            replacements.pageSize = pageSizeNum
-            console.log("Pagination => ", query);
+            const offset = (pageNum - 1) * pageSizeNum;
+            query += " OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY";
+            replacements.offset = offset;
+            replacements.limit = pageSizeNum;
         }
 
-        const [result] = await sequelize.query(query, { replacements });
+        // 6. EXECUTE DATA QUERY
+        const [results] = await sequelize.query(query, { replacements });
 
-        res.status(200).json({ data: result, totalCount })
+        // 7. FINAL RESPONSE
+        return res.status(200).json({
+            data: results,
+            total: totalCount,
+            page: pageNum || null,
+            limit: pageSizeNum || null,
+            success: true,
+        });
     } catch (error) {
-        res.status(500).json({ message: error.message })
-        console.log(error);
+        console.error("EMPLOYEE LISTING ERROR:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Database error",
+            error: error.message,
+        });
     } finally {
-        await sequelize.close()
+        if (sequelize) {
+            await sequelize.close();
+        }
     }
 };
 
-export const getEmpPhoto = async (req, res) => {
+export const listEmpById = async (req, res) => {
+    const { sequelize } = req.db;
     try {
         const { empukid } = req.params;
-        const sequelize = await dbConnection()
-
-        const [results] = await sequelize.query(
-            "SELECT empphoto FROM emp WHERE empukid = :empukid",
-            {
-                replacements: { empukid },
-            }
+        const [result] = await sequelize.query(
+            "SELECT * FROM emp WITH (NOLOCK) WHERE empukid = :empukid",
+            { replacements: { empukid } }
         );
 
-        console.log('results :>> ', results);
-
-        if (!results) {
-            return res.status(404).json({ message: "Employee Photo Not Found" });
+        if (!result || result.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Employee not found",
+            });
         }
 
-        const filePath = `\media\/${results[0].empphoto}`;
+        return res.status(200).json({
+            success: true,
+            data: result[0],
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    } finally {
+        if (sequelize) {
+            await sequelize.close();
+        }
+    }
+};
 
-        // console.log('filePath :>> ', filePath);
+export const createEmp = async (req, res) => {
+    const { Employee } = req.db.models;
+    const { sequelize } = req.db;
+    try {
+        const flag = req.body.Flag || req.body.flag || "A";
+        const empphoto = req.files?.empphoto?.[0]?.filename || req?.body?.empphoto || null;
 
-        return res.download(filePath);  
-    } catch (err) {
-        res.status(500).send(err.message);
+        if (flag === "A") {
+            await Employee.create({
+                ...req.body,
+                empphoto,
+                flag: "A",
+            });
+            return res.status(200).json({
+                success: true,
+                message: "Employee Create SuccessFully",
+            });
+        } else if (flag === "U") {
+            const oldRecord = await Employee.findOne({ where: { empukid: req.body.empukid } });
+            const oldPhoto = oldRecord ? oldRecord.empphoto : null;
+
+            await Employee.update(
+                {
+                    ...req.body,
+                    empphoto: empphoto || oldPhoto,
+                    flag: "U",
+                },
+                { where: { empukid: req.body.empukid } }
+            );
+
+            if (req.files?.empphoto && oldPhoto && oldPhoto !== empphoto) {
+                const oldPath = path.join("./media", oldPhoto);
+                if (fs.existsSync(oldPath)) {
+                    fs.unlinkSync(oldPath);
+                }
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: "Employee Updated Successfully",
+            });
+        } else {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid Flag value. Use 'A' for Add and 'U' for Update.",
+            });
+        }
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    } finally {
+        if (sequelize) {
+            await sequelize.close();
+        }
+    }
+};
+
+export const updateEmp = createEmp;
+
+export const getEmpPhoto = async (req, res) => {
+    const { sequelize } = req.db;
+    try {
+        const { empukid } = req.params;
+        const [result] = await sequelize.query(
+            "SELECT empphoto FROM emp WITH (NOLOCK) WHERE empukid = :empukid",
+            { replacements: { empukid } }
+        );
+
+        if (!result || !result[0] || !result[0].empphoto) {
+            return res.status(404).json({ success: false, message: "Employee Photo Not Found" });
+        }
+
+        const filePath = path.resolve("./media", result[0].empphoto);
+        return res.download(filePath);
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    } finally {
+        if (sequelize) {
+            await sequelize.close();
+        }
     }
 };
 
 export const deleteEmp = async (req, res) => {
-    const { empukid } = req.params;
-    const sequelize = await dbConnection()
-
+    const { Employee } = req.db.models;
+    const { sequelize } = req.db;
     try {
-        const [photo] = await sequelize.query(`Select empphoto from emp where empukid = :empukid`, {
-            replacements: {
-                empukid
-            },
-        })
+        const { empukid } = req.params;
+        const empRecord = await Employee.findOne({ where: { empukid } });
 
-        // console.log('photo :>> ', photo);
-
-        if (photo[0].empphoto) {
-            await fs.unlinkSync(`./media/${photo[0].empphoto}`)
+        if (!empRecord) {
+            return res.status(404).json({
+                success: false,
+                message: "Employee not found",
+            });
         }
 
-        const [result] = await sequelize.query(`Delete From emp where empukid = :empukid;`, { replacements: { empukid } });
-
-        if (result) {
-            return res.status(404).json({ message: "User Not Found" })
+        if (empRecord.empphoto) {
+            const oldPath = path.join("./media", empRecord.empphoto);
+            if (fs.existsSync(oldPath)) {
+                fs.unlinkSync(oldPath);
+            }
         }
 
-        res.status(200).json({ message: "Employee delete successFully", Success: true })
+        const result = await Employee.destroy({
+            where: { empukid },
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Employee deleted successfully",
+        });
     } catch (error) {
-        res.status(500).json({ message: error.message, Success: false })
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
     } finally {
-        await sequelize.close()
+        if (sequelize) {
+            await sequelize.close();
+        }
     }
 };
-
-

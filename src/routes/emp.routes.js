@@ -1,31 +1,19 @@
 import { Router } from "express";
-import { getEmp, getEmpPhoto, createEmp, updateEmp, deleteEmp } from "../controller/emp.controller.js";
-import authMiddleware from "../middleware/auth.middleware.js"
+import { getEmp, listEmpById, getEmpPhoto, createEmp, updateEmp, deleteEmp } from "../controller/emp.controller.js";
+import authMiddleware from "../middleware/auth.middleware.js";
 import { validate } from "../middleware/validate.js";
 import { upload } from "../middleware/multer.middleware.js";
-import { createEmpSchema, deleteEmpSchema } from "../validation/emp.validation.js";
+import { deleteEmpSchema } from "../validation/emp.validation.js";
 
-const router = Router()
+const router = Router();
 
-router.get("/getemp", getEmp)
+router.use(authMiddleware);
 
-router.get("/getempphoto/:empukid", getEmpPhoto)
+router.get("/getemp", getEmp);
+router.get("/getbyid/:empukid", listEmpById);
+router.get("/getempphoto/:empukid", getEmpPhoto);
+router.post("/AddEmp", upload, createEmp);
+router.put("/update", upload, updateEmp);
+router.delete("/empdelete/:empukid", validate(deleteEmpSchema), deleteEmp);
 
-router.post("/AddEmp", upload, createEmp)
-
-router.put("/update", upload, updateEmp)
-
-// router.put("/empupdate/:id", async (req, res) => {
-//     const { name, position, salary } = req.body
-//     try {
-//         const id = req.params.id
-//         await sql.query`update emp set name=${name}, position=${position}, salary=${salary} where id=${id}`;
-//         res.status(200).json({ message: "Employee Data is Updated" })
-//     } catch (error) {
-//         res.status(500).json({ message: error.message })
-//     }
-// })
-
-router.delete("/empdelete/:empukid", validate(deleteEmpSchema), deleteEmp)
-
-export default router 
+export default router;

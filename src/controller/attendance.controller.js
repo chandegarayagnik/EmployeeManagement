@@ -1,141 +1,195 @@
-import { dbConnection } from "../config/db.js";
-
 export const getAttendance = async (req, res) => {
-    const { empukid, date, status, page, pageSize } = req.query;
-    const sequelize = await dbConnection();
-
+    const { sequelize } = req.db;
     try {
+        const { empukid, date, status, page, pageSize } = req.query;
+
+        // 1. INITIALIZE QUERIES
         let query = `
-            SELECT 
-                a.*, 
-                e.name, 
-                e.email, 
-                e.position, 
-                e.salary 
-            FROM attendance a
-            INNER JOIN emp e ON a.empukid = e.empukid
+            SELECT a.*, e.name, e.email, e.position, e.salary 
+            FROM attendance a WITH (NOLOCK)
+            LEFT JOIN emp e WITH (NOLOCK) ON a.empukid = e.empukid
             WHERE 1=1
         `;
-
         let countQuery = `
-            SELECT COUNT(*) AS totalCount 
-            FROM attendance a
-            INNER JOIN emp e ON a.empukid = e.empukid
+            SELECT COUNT(*) AS total 
+            FROM attendance a WITH (NOLOCK)
+            LEFT JOIN emp e WITH (NOLOCK) ON a.empukid = e.empukid
             WHERE 1=1
         `;
-
         const replacements = {};
 
+        // 2. DYNAMIC FILTER MAPPING
         if (empukid) {
-            query += ` AND a.empukid = :empukid`;
-            countQuery += ` AND a.empukid = :empukid`;
+            const condition = " AND a.empukid = :empukid";
+            query += condition;
+            countQuery += condition;
             replacements.empukid = empukid;
         }
 
         if (date) {
-            query += ` AND a.date = :date`;
-            countQuery += ` AND a.date = :date`;
+            const condition = " AND a.date = :date";
+            query += condition;
+            countQuery += condition;
             replacements.date = date;
         }
 
         if (status) {
-            query += ` AND a.status = :status`;
-            countQuery += ` AND a.status = :status`;
+            const condition = " AND a.status = :status";
+            query += condition;
+            countQuery += condition;
             replacements.status = status;
         }
 
-        query += ` ORDER BY a.date DESC, a.check_in ASC`;
+        // 3. ORDER BY
+        query += " ORDER BY a.date DESC, a.check_in ASC";
 
-        // Pagination
+        // 4. GET TOTAL COUNT
+        const [countResult] = await sequelize.query(countQuery, { replacements });
+        const totalCount = countResult[0]?.total || 0;
+
+        // 5. APPLY PAGINATION LOGIC
         const pageNum = parseInt(page, 10);
         const pageSizeNum = parseInt(pageSize, 10);
 
-        if (!isNaN(pageNum) && !isNaN(pageSizeNum)) {
+        if (!isNaN(pageNum) && !isNaN(pageSizeNum) && pageNum > 0 && pageSizeNum > 0) {
             const offset = (pageNum - 1) * pageSizeNum;
-            query += ` OFFSET ${offset} ROWS FETCH NEXT ${pageSizeNum} ROWS ONLY`;
+            query += " OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY";
+            replacements.offset = offset;
+            replacements.limit = pageSizeNum;
         }
 
-        const [countResult] = await sequelize.query(countQuery, { replacements });
-        const totalCount = countResult[0]?.totalCount || 0;
-        
-        const [result] = await sequelize.query(query, { replacements });
+        // 6. EXECUTE DATA QUERY
+        const [results] = await sequelize.query(query, { replacements });
 
-        res.status(200).json({ data: result, totalCount });
-
+        // 7. FINAL RESPONSE
+        return res.status(200).json({
+            data: results,
+            total: totalCount,
+            page: pageNum || null,
+            limit: pageSizeNum || null,
+            success: true,
+        });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: error.message });
+        console.error("ATTENDANCE LISTING ERROR:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Database error",
+            error: error.message,
+        });
     } finally {
-        await sequelize.close();
+        if (sequelize) {
+            await sequelize.close();
+        }
+    }
+};
+
+export const listAttendanceById = async (req, res) => {
+    const { sequelize } = req.db;
+    try {
+        const { id } = req.params;
+        const [result] = await sequelize.query(
+            `SELECT a.*, e.name, e.email, e.position 
+             FROM attendance a WITH (NOLOCK)
+             LEFT JOIN emp e WITH (NOLOCK) ON a.empukid = e.empukid
+             WHERE a.id = :id`,
+            { replacements: { id } }
+        );
+
+        if (!result || result.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Attendance record not found",
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: result[0],
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    } finally {
+        if (sequelize) {
+            await sequelize.close();
+        }
     }
 };
 
 export const createAttendance = async (req, res) => {
-    const { id, empukid, date, check_in, check_out, status, flag = "A" } = req.body;
-    const sequelize = await dbConnection();
+    const { Attendance } = req.db.models;
+    const { sequelize } = req.db;
 
     try {
-        let query = "";
+        const flag = req.body.Flag || req.body.flag || "A";
 
         if (flag === "A") {
-            const [empukidCheck] = await sequelize.query(
-                `SELECT empukid FROM emp WHERE empukid = :empukid`,
-                { replacements: { empukid } }
+            await Attendance.create({
+                ...req.body,
+            });
+            return res.status(200).json({
+                success: true,
+                message: "Attendance Created Successfully",
+            });
+        } else if (flag === "U") {
+            await Attendance.update(
+                { ...req.body },
+                { where: { id: req.body.id } }
             );
 
-            console.log("===>", empukidCheck);
-            
-            if (empukidCheck.length > 0) {
-                return res.status(400).json({
-                    error: "Empukid already exists",
-                    Success: false
-                });
-            }
+            return res.status(200).json({
+                success: true,
+                message: "Attendance Updated Successfully",
+            });
+        } else {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid Flag value. Use 'A' for Add and 'U' for Update.",
+            });
         }
-
-        if (flag === "U") {
-            // Delete existing record before update
-            query += `
-                DELETE FROM attendance WHERE id = :id;
-            `;
-        }
-
-        query += `
-            INSERT INTO attendance 
-            (empukid, date, check_in, check_out, status)
-            VALUES
-            (:empukid, :date, :check_in, :check_out, :status);
-        `;
-
-        await sequelize.query(query, {
-            replacements: { id, empukid, date, check_in, check_out, status }
-        });
-
-        res.status(200).json({
-            message: flag === "A" ? "Attendance Created Successfully" : "Attendance Updated Successfully",
-            Success: true
-        });
-
     } catch (error) {
-        res.status(500).json({ error: error.message, Success: false });
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
     } finally {
-        await sequelize.close();
+        if (sequelize) {
+            await sequelize.close();
+        }
     }
 };
 
 export const deleteAttendance = async (req, res) => {
-    const { id } = req.params;
-    const sequelize = await dbConnection();
+    const { Attendance } = req.db.models;
+    const { sequelize } = req.db;
 
     try {
-        const query = `DELETE FROM attendance WHERE id = :id`;
-        await sequelize.query(query, { replacements: { id } });
+        const { id } = req.params;
+        const result = await Attendance.destroy({
+            where: { id },
+        });
 
-        res.status(200).json({ message: "Attendance deleted successfully", Success: true });
+        if (result === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Attendance record not found",
+            });
+        }
 
+        return res.status(200).json({
+            success: true,
+            message: "Attendance deleted successfully",
+        });
     } catch (error) {
-        res.status(500).json({ message: error.message, Success: false });
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
     } finally {
-        await sequelize.close();
+        if (sequelize) {
+            await sequelize.close();
+        }
     }
 };

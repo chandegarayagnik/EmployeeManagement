@@ -1,12 +1,14 @@
 import express from "express";
-import { generatePayroll } from "../controller/payroller.controller.js";
+import { listPayroll, listPayrollById, generatePayroll, deletePayroll } from "../controller/payroller.controller.js";
+import authMiddleware from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
-// router.get("/getpayroll", getPayroll);
-// router.post("/addandupdatepayroll", createPayroll);
-// router.delete("/deletepayroll/:id", deletePayroll);
+router.use(authMiddleware);
 
-router.post("/genratepayroll", generatePayroll)
+router.get("/getpayroll", listPayroll);
+router.get("/getbyid/:id", listPayrollById);
+router.post("/genratepayroll", generatePayroll);
+router.delete("/deletepayroll/:id", deletePayroll);
 
 export default router;

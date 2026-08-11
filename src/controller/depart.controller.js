@@ -1,118 +1,188 @@
-import { dbConnection } from "../config/db.js";
-
 export const getdepartment = async (req, res) => {
-    const { DepartmentID, DepartmentName, page, pageSize } = req.query
-    const sequelize = await dbConnection()
+    const { sequelize } = req.db;
     try {
+        const { DepartmentID, DepartmentName, flag, page, pageSize } = req.query;
 
-        let query = `SELECT * FROM department WHERE 1=1`;
-        let countQuery = `SELECT COUNT(*) as totalCount FROM department WHERE 1=1`;
+        // 1. INITIALIZE QUERIES
+        let query = "SELECT * FROM department WITH (NOLOCK) WHERE 1=1";
+        let countQuery = "SELECT COUNT(*) AS total FROM department WITH (NOLOCK) WHERE 1=1";
         const replacements = {};
 
+        // 2. DYNAMIC FILTER MAPPING
         if (DepartmentID) {
-            query += ` AND DepartmentID= :DepartmentID`;
-            countQuery += ` AND DepartmentID= :DepartmentID`;
-            replacements.DepartmentID = DepartmentID
-            console.log("D Id => ", query);
-            console.log("=> ", countQuery);
-
+            const condition = " AND DepartmentID = :DepartmentID";
+            query += condition;
+            countQuery += condition;
+            replacements.DepartmentID = DepartmentID;
         }
 
         if (DepartmentName) {
-            query += ` AND DepartmentName LIKE :DepartmentName`;
-            countQuery += ` AND DepartmentName LIKE :DepartmentName`;
-            replacements.DepartmentName = `%${DepartmentName}%`
-            console.log("Name => ", query);
-            console.log("", countQuery);
-
+            const condition = " AND DepartmentName LIKE :DepartmentName";
+            query += condition;
+            countQuery += condition;
+            replacements.DepartmentName = `%${DepartmentName}%`;
         }
 
+        if (flag) {
+            const condition = " AND flag = :flag";
+            query += condition;
+            countQuery += condition;
+            replacements.flag = flag;
+        }
+
+        // 3. ORDER BY
         query += " ORDER BY DepartmentID ASC";
 
-        const [countresult] = await sequelize.query(countQuery, { replacements });
-        const totalCount = countresult[0]?.totalCount || 0;
+        // 4. GET TOTAL COUNT
+        const [countResult] = await sequelize.query(countQuery, { replacements });
+        const totalCount = countResult[0]?.total || 0;
 
-        // Apply The Pagination 
-        const pageNum = parseInt(page, 10)
-        const pageSizeNum = parseInt(pageSize, 10)
+        // 5. APPLY PAGINATION LOGIC
+        const pageNum = parseInt(page, 10);
+        const pageSizeNum = parseInt(pageSize, 10);
 
         if (!isNaN(pageNum) && !isNaN(pageSizeNum) && pageNum > 0 && pageSizeNum > 0) {
-            const offset = (pageNum - 1) * pageSizeNum
-            query += ` OFFSET ${offset} ROWS FETCH NEXT ${pageSizeNum} ROWS ONLY `;
-            replacements.offset = offset
-            replacements.pageSize = pageSizeNum
-            console.log("Pagination => ", query);
+            const offset = (pageNum - 1) * pageSizeNum;
+            query += " OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY";
+            replacements.offset = offset;
+            replacements.limit = pageSizeNum;
         }
 
-        const [result] = await sequelize.query(query, { replacements });
+        // 6. EXECUTE DATA QUERY
+        const [results] = await sequelize.query(query, { replacements });
 
-        console.log("Replacement => ", replacements);
-
-        res.status(200).json({ data: result[0], totalCount })
+        // 7. FINAL RESPONSE
+        return res.status(200).json({
+            data: results,
+            total: totalCount,
+            page: pageNum || null,
+            limit: pageSizeNum || null,
+            success: true,
+        });
     } catch (error) {
-        res.status(500).json({ message: error.message })
-        console.log(error);
+        console.error("DEPARTMENT LISTING ERROR:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Database error",
+            error: error.message,
+        });
     } finally {
-        await sequelize.close()
+        if (sequelize) {
+            await sequelize.close();
+        }
     }
-}
+};
+
+export const listDepartmentById = async (req, res) => {
+    const { sequelize } = req.db;
+    try {
+        const { DepartmentID } = req.params;
+        const [result] = await sequelize.query(
+            "SELECT * FROM department WITH (NOLOCK) WHERE DepartmentID = :DepartmentID",
+            { replacements: { DepartmentID } }
+        );
+
+        if (!result || result.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Department not found",
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: result[0],
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    } finally {
+        if (sequelize) {
+            await sequelize.close();
+        }
+    }
+};
 
 export const createdepartment = async (req, res) => {
-    const { DepartmentID, DepartmentName, flag = "A" } = req.body;
-
-    const sequelize = await dbConnection();
+    const { Department } = req.db.models;
+    const { sequelize } = req.db;
 
     try {
+        const flag = req.body.Flag || req.body.flag || "A";
 
-        let query = "";
+        if (flag === "A") {
+            await Department.create({
+                ...req.body,
+                flag: "A",
+            });
+            return res.status(200).json({
+                success: true,
+                message: "Department added successfully",
+            });
+        } else if (flag === "U") {
+            const [updatedCount] = await Department.update(
+                { ...req.body, flag: "U" },
+                { where: { DepartmentID: req.body.DepartmentID } }
+            );
 
-        if (flag === "U") {
-            query += ` 
-        DELETE FROM department WHERE DepartmentID = :DepartmentID;
-      `;
+            if (updatedCount === 0) {
+                // If not updated, attempt create or return not found
+                await Department.create({ ...req.body, flag: "U" });
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: "Department Update Successfully",
+            });
+        } else {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid Flag value. Use 'A' for Add and 'U' for Update.",
+            });
         }
-
-        query += `
-      INSERT INTO department
-      (DepartmentID, DepartmentName, flag)
-      VALUES
-      (:DepartmentID, :DepartmentName, :flag);
-    `;
-
-        await sequelize.query(query, {
-            replacements: {
-                DepartmentID, DepartmentName, flag
-            },
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message,
         });
-
-        res.status(200).json({
-            message:
-                flag === "A" ? "Add Department SuccessFully" : "Update Department SuccessFully", Success: true
-        });
-
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: err.message, Success: false });
     } finally {
-        await sequelize.close();
+        if (sequelize) {
+            await sequelize.close();
+        }
     }
 };
 
 export const deletedepartment = async (req, res) => {
-    const { DepartmentID } = req.params;
-    const sequelize = await dbConnection()
+    const { Department } = req.db.models;
+    const { sequelize } = req.db;
 
     try {
-        const query = `Delete From department where DepartmentID = :DepartmentID;`
-        const result = await sequelize.query(query, { replacements: { DepartmentID } });
-        if (result[1] === 0) {
-            return res.status(404).json({ message: "Department Not Found" })
+        const { DepartmentID } = req.params;
+        const result = await Department.destroy({
+            where: { DepartmentID },
+        });
+
+        if (result === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Department not found",
+            });
         }
 
-        res.status(200).json({ message: "Delete Department successFully", Success: true })
+        return res.status(200).json({
+            success: true,
+            message: "Department deleted successfully",
+        });
     } catch (error) {
-        res.status(500).json({ message: error.message, Success: false })
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
     } finally {
-        await sequelize.close()
+        if (sequelize) {
+            await sequelize.close();
+        }
     }
-}
+};
