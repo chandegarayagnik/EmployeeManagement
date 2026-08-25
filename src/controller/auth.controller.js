@@ -1,235 +1,242 @@
-import jwt from "jsonwebtoken";
-import crypto from "crypto";
-import { dbConnection } from "../config/db.js";
-import { loadModels } from "../model/index.js";
 import "dotenv/config";
-
-const generateCustid = (length = 6) => {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    let result = "";
-    for (let i = 0; i < length; i++) {
-        result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
-};
-
-const generateUUID = () => {
-    return crypto.randomUUID();
-};
+import bcrypt from "bcrypt";
 
 export const signup = async (req, res) => {
-    let sequelize = req.db?.sequelize;
-    let masterOpenedLocally = false;
-    let newDbConnection = null;
-
-    if (!sequelize) {
-        sequelize = await dbConnection();
-        masterOpenedLocally = true;
-    }
-
+    const { Registration } = req.db.models;
     try {
         const {
-            ClientUkeyId = generateUUID(),
-            Clientname,
-            BusinessName,
-            Password,
-            Mobile1,
+            ClientUkeyId,
+            CustId,
+            FirstName,
+            LastName,
+            Mobile,
             Email,
-            DBPassword = "",
-            DBusername = "",
-            IsActive = true,
-            businesstype = "General",
-            Flag = "A",
             Username,
-            ServerName = "localhost",
-            ModuleType = "EmployeeManagement",
+            Password,
+            Role,
+            IsActive,
+            IsDefault,
+            LicenseDate,
+            IPAddress,
+            Device,
+            ReferenceBy
         } = req.body;
 
-        const IPAddress = req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "Not Found";
-        const CustId = req.body.CustId || generateCustid();
-
-        // 1. Create database dynamically if it does not exist
-        try {
-            await sequelize.query(`IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = N'${CustId}') CREATE DATABASE [${CustId}];`);
-        } catch (dbErr) {
-            console.error("Database creation note/error:", dbErr.message);
+        // 1. Required field validation
+        if (!ClientUkeyId) {
+            return res.status(400).json({
+                status: false,
+                message: "ClientUkeyId is required"
+            });
         }
 
-        // 2. Connect to the new tenant database
-        newDbConnection = await dbConnection(CustId);
-        const newModels = loadModels(newDbConnection);
+        if (!CustId) {
+            return res.status(400).json({
+                status: false,
+                message: "CustId is required"
+            });
+        }
 
-        // Sync models to initialize tables in the new tenant database
-        await newDbConnection.sync({ force: false });
+        if (!Username) {
+            return res.status(400).json({
+                status: false,
+                message: "Username is required"
+            });
+        }
 
-        // 3. Create default admin user in CHILD database
-        const { User: ChildUser } = newModels;
-        const user = await ChildUser.create({
-            userukid: ClientUkeyId,
-            username: Username || Clientname || "Admin",
-            email: Email,
-            password: Password,
-            mobile: Mobile1,
+        if (!Password) {
+            return res.status(400).json({
+                status: false,
+                message: "Password is required"
+            });
+        }
+
+        // 2. Check duplicate username
+        const existingUsername = await Registration.findOne({
+            where: {
+                Username: Username.trim()
+            }
         });
 
-        // 4. Calculate Expiry Date (15 days trial)
-        const ExpiryDate = new Date();
-        ExpiryDate.setDate(ExpiryDate.getDate() + 15);
+        console.log("existingUsername", existingUsername);
 
-        const NextRenewDate = new Date();
-        NextRenewDate.setDate(ExpiryDate.getDate() + 1);
+        if (existingUsername) {
+            return res.status(409).json({
+                status: false,
+                message: "Username already exists"
+            });
+        }
 
-        const formattedExpiryDate = ExpiryDate.toISOString().split("T")[0];
-        const nextrenewdate = NextRenewDate.toISOString().split("T")[0];
+        // 3. Check duplicate email
+        if (Email) {
+            const existingEmail = await Registration.findOne({
+                where: {
+                    Email: Email.trim()
+                }
+            });
 
-        // 5. Insert registration into MASTER database Registration table
-        const models = req.db?.models || loadModels(sequelize);
-        const Registration = models.Registration || models.Registartion;
-
-        if (Registration) {
-            try {
-                // Ensure Registration table exists in Master DB
-                await Registration.sync({ force: false });
-
-                await Registration.create({
-                    ClientUkeyId,
-                    Clientname: Clientname || BusinessName,
-                    BusinessName: BusinessName || Clientname,
-                    Password,
-                    Mobile1,
-                    Email,
-                    CustId,
-                    DBPassword,
-                    DBusername,
-                    IsActive,
-                    businesstype,
-                    Flag,
-                    Username: Username || Clientname,
-                    ServerName,
-                    IPAddress,
-                    Version: "1.0",
-                    ClientAddress: req.body.ClientAddress || "",
-                    ClientCity: req.body.ClientCity || "",
-                    ModuleType,
-                    LicenseKey: generateCustid(8),
-                    ExpiryDate: formattedExpiryDate,
-                    LastRenewDate: new Date(),
-                    NextRenewDate: nextrenewdate,
-                    LicenseStatus: "Trial",
-                    MaxUsers: 5,
-                    MaxCompanies: 2,
-                    MaxFirms: 2,
-                    MaxInvoicesPerMonth: 100,
-                    CanUseMobileApp: true,
-                    CanUseAPI: false,
-                    PrioritySupport: "X",
-                    RenewBy: BusinessName || Clientname,
-                    ProductName: "Employee Management",
-                    LicenseType: "Trial",
+            if (existingEmail) {
+                return res.status(409).json({
+                    status: false,
+                    message: "Email already exists"
                 });
-            } catch (regErr) {
-                console.error("Master DB Registration sync/insert note:", regErr.message);
             }
         }
 
-        return res.status(200).json({
-            success: true,
-            message: "User created & database initialized",
-            CustId,
-            user,
+        // 4. Check duplicate CustId
+        const existingCustId = await Registration.findOne({
+            where: {
+                CustId: CustId.trim()
+            }
         });
+
+        if (existingCustId) {
+            return res.status(409).json({
+                status: false,
+                message: "CustId already exists"
+            });
+        }
+
+        // 5. Hash password
+        const hashedPassword = await bcrypt.hash(Password, 10);
+
+        // 6. Create registration
+        const registration = await Registration.create({
+            ClientUkeyId: ClientUkeyId.trim(),
+            CustId: CustId.trim(),
+            FirstName: FirstName?.trim(),
+            LastName: LastName?.trim(),
+            Mobile: Mobile?.trim(),
+            Email: Email?.trim(),
+            Username: Username.trim(),
+            Password: hashedPassword,
+            Role: Role?.trim() || "User",
+            IsActive: IsActive ?? true,
+            IsDefault: IsDefault ?? false,
+            LicenseDate: LicenseDate || null,
+            IPAddress: IPAddress || req.ip,
+            Device: Device || null,
+            ReferenceBy: ReferenceBy?.trim() || null
+        });
+
+        // 7. Remove password from response
+        const responseData = registration.toJSON();
+        delete responseData.Password;
+
+        // 8. Response
+        return res.status(201).json({
+            status: true,
+            message: "Registration successful",
+            data: responseData
+        });
+
     } catch (error) {
-        console.error("SIGNUP ERROR:", error);
+        console.error("Signup Error:", error);
+
         return res.status(500).json({
-            success: false,
-            message: error.message,
+            status: false,
+            message: "Something went wrong",
+            error: error.message
         });
-    } finally {
-        if (newDbConnection) {
-            await newDbConnection.close();
-        }
-        if (sequelize && masterOpenedLocally) {
-            await sequelize.close();
-        }
     }
 };
 
 export const login = async (req, res) => {
-    let sequelize = req.db?.sequelize;
-    let masterOpenedLocally = false;
-    let targetConn = null;
-
-    if (!sequelize) {
-        sequelize = await dbConnection();
-        masterOpenedLocally = true;
-    }
-
+    const { Registration } = req.db.models;
+    const { Username, Password } = req.body;
     try {
-        const { email, username, password, CustId } = req.body;
-        let targetCustId = CustId;
-
-        // If CustId not provided, search in Master DB Registration table by Email/Username
-        if (!targetCustId && (email || username)) {
-            const searchVal = email || username;
-            try {
-                const [regResult] = await sequelize.query(
-                    "SELECT TOP 1 CustId FROM Registration WITH (NOLOCK) WHERE Email = :searchVal OR Username = :searchVal OR CustId = :searchVal",
-                    { replacements: { searchVal } }
-                );
-                if (regResult && regResult[0]) {
-                    targetCustId = regResult[0].CustId;
-                }
-            } catch (err) {
-                console.error("Master DB lookup note:", err.message);
-            }
+        if (!Username || !Password) {
+            return res.status(400).json({
+                status: false,
+                message: "Username and Password are required"
+            });
         }
 
-        targetConn = targetCustId ? await dbConnection(targetCustId) : sequelize;
-        const targetModels = loadModels(targetConn);
-        const { User: TargetUser } = targetModels;
-
-        const user = await TargetUser.findOne({
-            where: email ? { email } : { username },
+        const user = await Registration.findOne({
+            where: {
+                Username: Username.trim()
+            }
         });
 
         if (!user) {
-            return res.status(404).json({ success: false, message: "User not found" });
+            return res.status(401).json({
+                status: false,
+                message: "Invalid username or password"
+            });
         }
 
-        if (!password || user.password !== password) {
-            return res.status(401).json({ success: false, message: "Invalid password" });
+        if (!user.IsActive) {
+            return res.status(403).json({
+                status: false,
+                message: "Your account is inactive"
+            });
         }
+
+        const passwordMatch = await bcrypt.compare(
+            Password,
+            user.Password
+        );
+
+        if (!passwordMatch) {
+            return res.status(401).json({
+                status: false,
+                message: "Invalid username or password"
+            });
+        }
+
+        const role = user.Role?.trim();
+
+        if (!["Admin", "User"].includes(role)) {
+            return res.status(403).json({
+                status: false,
+                message: "Invalid user role"
+            });
+        }
+
+        const tokenPayload = {
+            Id: user.Id,
+            ClientUkeyId: user.ClientUkeyId,
+            CustId: user.CustId,
+            Username: user.Username,
+            Role: role
+        };
 
         const token = jwt.sign(
+            tokenPayload,
+            process.env.JWT_SECRET,
             {
-                id: user.id,
-                userukid: user.userukid,
-                email: user.email,
-                CustId: targetCustId || user.CustId || null,
-                LoginTime: new Date().toISOString(),
-            },
-            process.env.JWT_SECRET || "default_secret",
-            { expiresIn: "2h" }
+                expiresIn: "30d"
+            }
         );
 
         return res.status(200).json({
-            success: true,
-            message: "Login success",
+            status: true,
+            message: `${role} login successful`,
             token,
-            CustId: targetCustId,
+            data: {
+                Id: user.Id,
+                ClientUkeyId: user.ClientUkeyId,
+                CustId: user.CustId,
+                FirstName: user.FirstName,
+                LastName: user.LastName,
+                Mobile: user.Mobile,
+                Email: user.Email,
+                Username: user.Username,
+                Role: role,
+                IsActive: user.IsActive,
+                IsDefault: user.IsDefault,
+                LicenseDate: user.LicenseDate
+            }
         });
+
     } catch (error) {
+        console.error("Login Error:", error);
+
         return res.status(500).json({
-            success: false,
-            message: error.message,
+            status: false,
+            message: "Something went wrong",
+            error: error.message
         });
-    } finally {
-        if (targetConn && targetConn !== sequelize) {
-            await targetConn.close();
-        }
-        if (sequelize && masterOpenedLocally) {
-            await sequelize.close();
-        }
     }
 };
 
