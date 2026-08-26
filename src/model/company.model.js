@@ -1,4 +1,4 @@
-import { DataTypes } from "sequelize";
+import { DataTypes, Sequelize } from "sequelize";
 
 export default (sequelize) => {
     return sequelize.define(
@@ -76,15 +76,10 @@ export default (sequelize) => {
                 allowNull: true
             },
 
-            Guid: {
-                type: DataTypes.STRING(100),
-                allowNull: true
-            },
-
             EntryTime: {
                 type: DataTypes.DATE,
+                defaultValue: Sequelize.literal("GETDATE()"),
                 allowNull: true,
-                defaultValue: DataTypes.NOW
             },
 
             IsActive: {

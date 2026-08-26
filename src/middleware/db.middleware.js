@@ -1,4 +1,4 @@
-import { dbConnection, sequelize as defaultSequelize } from "../config/db.js";
+import { dbConnection } from '../config/db.js';
 import { loadModels } from "../model/index.js";
 
 export const attachDatabase = async (req, res, next) => {

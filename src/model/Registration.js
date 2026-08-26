@@ -86,6 +86,17 @@ export default (sequelize) => {
       ReferenceBy: {
         type: DataTypes.STRING(100),
         allowNull: true
+      },
+
+      Remark: {
+        type: DataTypes.STRING(100),
+        allowNull: true
+      },
+
+      Discription: {
+        type: DataTypes.STRING(100),
+        defaultValue: "",
+        allowNull: true
       }
     },
 

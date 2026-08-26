@@ -1,12 +1,16 @@
-import "dotenv/config";
 import bcrypt from "bcrypt";
+import { generateJWTT } from "../utility/jwt.js";
 
 export const signup = async (req, res) => {
-    const { Registration } = req.db.models;
+    const { Registration, Company, Employee } = req.db.models;
+    const { sequelize } = req.db
+    const transaction = await sequelize.transaction();
+
     try {
         const {
             ClientUkeyId,
             CustId,
+            CompanyName,
             FirstName,
             LastName,
             Mobile,
@@ -17,10 +21,12 @@ export const signup = async (req, res) => {
             IsActive,
             IsDefault,
             LicenseDate,
-            IPAddress,
+            Address,
             Device,
             ReferenceBy
         } = req.body;
+
+        const IPAddress = req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "Not Found";
 
         // 1. Required field validation
         if (!ClientUkeyId) {
@@ -57,8 +63,6 @@ export const signup = async (req, res) => {
                 Username: Username.trim()
             }
         });
-
-        console.log("existingUsername", existingUsername);
 
         if (existingUsername) {
             return res.status(409).json({
@@ -114,14 +118,49 @@ export const signup = async (req, res) => {
             IsActive: IsActive ?? true,
             IsDefault: IsDefault ?? false,
             LicenseDate: LicenseDate || null,
-            IPAddress: IPAddress || req.ip,
+            IPAddress: IPAddress,
             Device: Device || null,
-            ReferenceBy: ReferenceBy?.trim() || null
-        });
+            ReferenceBy: ReferenceBy?.trim() || null,
+            remark: Password?.trim() || null,
+        }, { transaction });
+
+        const company = await Company.create({
+            CompanyName: CompanyName.trim(),
+            Add1: Address.trim(),
+            Mobile1: Mobile.trim(),
+            Email: Email.trim(),
+            CustId: CustId.trim(),
+            ClientUkeyId: ClientUkeyId.trim(),
+            UserName: Username.trim(),
+            IsActive: IsActive ?? true,
+            IPAddress: IPAddress,
+            Flag: "A",
+        }, { transaction });
+
+        const employee = await Employee.create({
+            EmployeeId: ClientUkeyId.trim(),
+            FirstName: FirstName.trim(),
+            LastName: LastName.trim(),
+            Add1: Address.trim(),
+            Mobile1: Mobile.trim(),
+            Email: Email.trim(),
+            Role: Role.trim(),
+            LicenseDate: LicenseDate.trim(),
+            CustId: CustId.trim(),
+            UserName: Username.trim(),
+            Password: hashedPassword,
+            IsActive: IsActive ?? true,
+            IPAddress: IPAddress,
+            Flag: "A",
+        }, { transaction });
+
+        // Commit transaction when all records are created successfully
+        await transaction.commit();
 
         // 7. Remove password from response
         const responseData = registration.toJSON();
         delete responseData.Password;
+        delete responseData.remark;
 
         // 8. Response
         return res.status(201).json({
@@ -131,6 +170,8 @@ export const signup = async (req, res) => {
         });
 
     } catch (error) {
+        await transaction.rollback();
+
         console.error("Signup Error:", error);
 
         return res.status(500).json({
@@ -148,7 +189,7 @@ export const login = async (req, res) => {
         if (!Username || !Password) {
             return res.status(400).json({
                 status: false,
-                message: "Username and Password are required"
+                message: "Username and Password are Required"
             });
         }
 
@@ -158,17 +199,19 @@ export const login = async (req, res) => {
             }
         });
 
+        console.log("user", user);
+
         if (!user) {
             return res.status(401).json({
                 status: false,
-                message: "Invalid username or password"
+                message: "Invalid Username or Password"
             });
         }
 
         if (!user.IsActive) {
             return res.status(403).json({
                 status: false,
-                message: "Your account is inactive"
+                message: "Your Account Is Inactive"
             });
         }
 
@@ -177,19 +220,12 @@ export const login = async (req, res) => {
             user.Password
         );
 
+        console.log("passwordMatch", passwordMatch);
+
         if (!passwordMatch) {
             return res.status(401).json({
                 status: false,
-                message: "Invalid username or password"
-            });
-        }
-
-        const role = user.Role?.trim();
-
-        if (!["Admin", "User"].includes(role)) {
-            return res.status(403).json({
-                status: false,
-                message: "Invalid user role"
+                message: "Invalid Username or Password"
             });
         }
 
@@ -197,36 +233,35 @@ export const login = async (req, res) => {
             Id: user.Id,
             ClientUkeyId: user.ClientUkeyId,
             CustId: user.CustId,
+            FirstName: user.FirstName,
+            LastName: user.LastName,
+            Mobile: user.Mobile,
+            Email: user.Email,
             Username: user.Username,
+            LicenseDate: user.LicenseDate,
+            ReferenceBy: user.ReferenceBy,
             Role: role
         };
 
-        const token = jwt.sign(
-            tokenPayload,
-            process.env.JWT_SECRET,
-            {
-                expiresIn: "30d"
-            }
-        );
+        const token = generateJWTT(tokenPayload);
 
         return res.status(200).json({
             status: true,
             message: `${role} login successful`,
             token,
-            data: {
-                Id: user.Id,
-                ClientUkeyId: user.ClientUkeyId,
-                CustId: user.CustId,
-                FirstName: user.FirstName,
-                LastName: user.LastName,
-                Mobile: user.Mobile,
-                Email: user.Email,
-                Username: user.Username,
-                Role: role,
-                IsActive: user.IsActive,
-                IsDefault: user.IsDefault,
-                LicenseDate: user.LicenseDate
-            }
+            Id: user.Id,
+            ClientUkeyId: user.ClientUkeyId,
+            CustId: user.CustId,
+            FirstName: user.FirstName,
+            LastName: user.LastName,
+            Mobile: user.Mobile,
+            Email: user.Email,
+            Username: user.Username,
+            Role: role,
+            IsActive: user.IsActive,
+            IsDefault: user.IsDefault,
+            LicenseDate: user.LicenseDate,
+            ReferenceBy: user.ReferenceBy,
         });
 
     } catch (error) {
