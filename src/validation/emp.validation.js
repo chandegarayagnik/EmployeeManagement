@@ -41,6 +41,6 @@ export const createEmpSchema = Joi.object({
 });
 
 export const deleteEmpSchema = Joi.object({
-  empukid: Joi.string().required(),
+  Id: Joi.string().required(),
 });
 

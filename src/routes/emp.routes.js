@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getEmp, listEmpById, getEmpPhoto, createEmp, updateEmp, deleteEmp } from "../controller/emp.controller.js";
+import { getEmp, listEmpById, getEmpPhoto, createEmp, deleteEmp } from "../controller/emp.controller.js";
 import { authenticateJWT } from "../middleware/auth.middleware.js";
 import { attachDatabase } from "../middleware/db.middleware.js";
 import { validate } from "../middleware/validate.js";
@@ -9,10 +9,9 @@ import { deleteEmpSchema, createEmpSchema } from "../validation/emp.validation.j
 const router = Router();
 
 router.get("/getemp", authenticateJWT, attachDatabase, getEmp);
-router.get("/getbyid/:empukid", authenticateJWT, attachDatabase, listEmpById);
-router.get("/getempphoto/:empukid", authenticateJWT, attachDatabase, getEmpPhoto);
+router.get("/getbyempid/:Id", authenticateJWT, attachDatabase, validate(deleteEmpSchema, "params"), listEmpById);
+router.get("/getempphoto/:Id", authenticateJWT, attachDatabase, validate(deleteEmpSchema, "params"), getEmpPhoto);
 router.post("/AddEmp", authenticateJWT, attachDatabase, upload, validate(createEmpSchema), createEmp);
-router.put("/update", authenticateJWT, attachDatabase, upload, updateEmp);
-router.delete("/empdelete/:empukid", authenticateJWT, attachDatabase, validate(deleteEmpSchema, "params"), deleteEmp);
+router.delete("/empdelete/:Id", authenticateJWT, attachDatabase, validate(deleteEmpSchema, "params"), deleteEmp);
 
 export default router;

@@ -174,16 +174,11 @@ export const getEmp = async (req, res) => {
 export const listEmpById = async (req, res) => {
     const { sequelize } = req.db;
     try {
-        const { empukid } = req.params;
+        const { Id } = req.params;
         let [result] = await sequelize.query(
-            "SELECT * FROM EmployeeMaster WITH (NOLOCK) WHERE EmployeeId = :empukid OR Id = :empukid OR empukid = :empukid",
-            { replacements: { empukid } }
-        ).catch(async () => {
-            return await sequelize.query(
-                "SELECT * FROM emp WITH (NOLOCK) WHERE empukid = :empukid OR id = :empukid",
-                { replacements: { empukid } }
-            );
-        });
+            "SELECT * FROM EmployeeMaster WITH (NOLOCK) WHERE Id = :Id",
+            { replacements: { Id } }
+        )
 
         if (!result || result.length === 0) {
             return res.status(404).json({
@@ -208,39 +203,15 @@ export const listEmpById = async (req, res) => {
     }
 };
 
-/**
- * Helper to parse boolean values safely from string or boolean
- */
-const parseBoolean = (val, defaultVal) => {
-    if (val === undefined || val === null || val === "") return defaultVal;
-    if (typeof val === "boolean") return val;
-    const str = String(val).trim().toLowerCase();
-    if (str === "true" || str === "1") return true;
-    if (str === "false" || str === "0") return false;
-    return defaultVal;
-};
 
 export const createEmp = async (req, res) => {
     try {
         const { sequelize } = req.db;
         const { Employee } = req.db.models
-        const { Flag, Password } = req.body;
+        const { Flag, Password, Id, CustId } = req.body;
+        const IPAddress = req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "Not Found";
 
         if (Flag === "A") {
-
-            // const existingUser = await Employee.findOne({
-            //     where: {
-            //         UserName: UserName.trim(),
-            //         CustId: CustId.trim()
-            //     }
-            // });
-
-            // if (existingUser) {
-            //     return res.status(409).json({
-            //         status: false,
-            //         message: "Employee username already exists"
-            //     });
-            // }
 
             const hashedPassword = await bcrypt.hash(
                 Password,
@@ -249,15 +220,17 @@ export const createEmp = async (req, res) => {
 
             let imagePath = null;
 
-            if (req.file) {
-                imagePath = req.file.path.replace(/\\/g, "/");
+            if (req.files?.Img) {
+                imagePath = req.files.Img[0]?.filename;
             }
+
+            // console.log("Image path : ", imagePath);
 
             const employee = await Employee.create({
                 ...req.body,
                 Img: imagePath,
                 Password: hashedPassword,
-                IPAddress: IPAddress || req.ip,
+                IPAddress: IPAddress
             });
         }
 
@@ -284,15 +257,15 @@ export const createEmp = async (req, res) => {
             }
 
             let imagePath = employee.Img;
+            const newImage = req.files?.Img?.[0]?.filename || req.files?.empphoto?.[0]?.filename || req.file?.filename;
 
-            if (req.file) {
-                imagePath = req.file.path.replace(
-                    /\\/g,
-                    "/"
-                );
+            if (newImage) {
+                if (employee.Img) {
+                    removePhotoFile(employee.Img);
+                }
+                imagePath = newImage;
             }
 
-            // ---------------------------------------------
             let password = employee.Password;
 
             if (Password) {
@@ -305,7 +278,8 @@ export const createEmp = async (req, res) => {
             await employee.update({
                 ...req.body,
                 Img: imagePath,
-                Password: password
+                Password: password,
+                IPAddress: IPAddress
             });
         }
 
@@ -330,34 +304,21 @@ export const createEmp = async (req, res) => {
 };
 
 /**
- * Update Employee explicit wrapper
- */
-export const updateEmp = async (req, res) => {
-    req.body.Flag = "U";
-    req.body.flag = "U";
-    return createEmp(req, res);
-};
-
-/**
  * Get / Download Employee Photo
  */
 export const getEmpPhoto = async (req, res) => {
     const { sequelize } = req.db;
     try {
-        const { empukid } = req.params;
+        const { Id } = req.params;
         let [result] = await sequelize.query(
-            "SELECT Img, empphoto FROM EmployeeMaster WITH (NOLOCK) WHERE EmployeeId = :empukid OR Id = :empukid OR empukid = :empukid",
-            { replacements: { empukid } }
-        ).catch(async () => {
-            return await sequelize.query(
-                "SELECT empphoto, Img FROM emp WITH (NOLOCK) WHERE empukid = :empukid OR id = :empukid",
-                { replacements: { empukid } }
-            );
+            "SELECT Img FROM EmployeeMaster WITH (NOLOCK) WHERE Id = :Id", {
+            replacements: { Id },
+            type: sequelize.QueryTypes.SELECT
         });
 
-        const photoName = result?.[0]?.Img || result?.[0]?.empphoto;
+        const photoName = result?.Img;
 
-        if (!result || !result[0] || !photoName) {
+        if (!result) {
             return res.status(404).json({
                 success: false,
                 message: "Employee Photo Not Found",
@@ -365,6 +326,8 @@ export const getEmpPhoto = async (req, res) => {
         }
 
         const filePath = path.resolve("./media", photoName);
+        console.log("File Path : ", filePath);
+
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({
                 success: false,
@@ -372,7 +335,8 @@ export const getEmpPhoto = async (req, res) => {
             });
         }
 
-        return res.download(filePath);
+        return res.status(200).download(filePath);
+
     } catch (error) {
         return res.status(500).json({
             success: false,
@@ -392,9 +356,9 @@ export const deleteEmp = async (req, res) => {
     const { Employee } = req.db.models;
     const { sequelize } = req.db;
     try {
-        const empIdentifier = req.params.empukid || req.body.empukid || req.body.Id || req.body.EmployeeId;
+        const { Id } = req.params;
 
-        if (!empIdentifier) {
+        if (!Id) {
             return res.status(400).json({
                 success: false,
                 message: "Employee ID is required",
@@ -403,40 +367,35 @@ export const deleteEmp = async (req, res) => {
 
         const empRecord = await Employee.findOne({
             where: {
-                [Op.or]: [
-                    { Id: empIdentifier },
-                    { EmployeeId: String(empIdentifier) },
-                    { empukid: String(empIdentifier) },
-                ],
+                Id: Id,
             },
-        }).catch(() => null);
+        });
 
         if (!empRecord) {
             return res.status(404).json({
                 success: false,
-                message: "Employee not found",
+                message: "Employee Not Found",
             });
         }
 
         // Delete photo file if present
-        const photoName = empRecord.Img || empRecord.empphoto;
+        const photoName = empRecord?.Img;
+        console.log("Photo Name in Delete: ", photoName);
+        console.log("Emp Record in Delete: ", empRecord);
+
         if (photoName) {
             removePhotoFile(photoName);
         }
 
         await Employee.destroy({
             where: {
-                [Op.or]: [
-                    { Id: empIdentifier },
-                    { EmployeeId: String(empIdentifier) },
-                    { empukid: String(empIdentifier) },
-                ],
+                Id: Id,
             },
         });
 
         return res.status(200).json({
             success: true,
-            message: "Employee deleted successfully",
+            message: "Employee Deleted Successfully",
         });
     } catch (error) {
         return res.status(500).json({
