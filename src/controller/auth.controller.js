@@ -229,6 +229,8 @@ export const login = async (req, res) => {
             });
         }
 
+        console.log("user", user);
+
         const tokenPayload = {
             Id: user.Id,
             ClientUkeyId: user.ClientUkeyId,
@@ -240,14 +242,14 @@ export const login = async (req, res) => {
             Username: user.Username,
             LicenseDate: user.LicenseDate,
             ReferenceBy: user.ReferenceBy,
-            Role: role
+            Role: user.Role
         };
 
         const token = generateJWTT(tokenPayload);
 
         return res.status(200).json({
             status: true,
-            message: `${role} login successful`,
+            message: `${user.Role} login successful`,
             token,
             Id: user.Id,
             ClientUkeyId: user.ClientUkeyId,
@@ -257,7 +259,7 @@ export const login = async (req, res) => {
             Mobile: user.Mobile,
             Email: user.Email,
             Username: user.Username,
-            Role: role,
+            Role: user.Role,
             IsActive: user.IsActive,
             IsDefault: user.IsDefault,
             LicenseDate: user.LicenseDate,

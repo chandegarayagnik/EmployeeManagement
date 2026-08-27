@@ -13,6 +13,6 @@ router.get("/getbyid/:empukid", authenticateJWT, attachDatabase, listEmpById);
 router.get("/getempphoto/:empukid", authenticateJWT, attachDatabase, getEmpPhoto);
 router.post("/AddEmp", authenticateJWT, attachDatabase, upload, createEmp);
 router.put("/update", authenticateJWT, attachDatabase, upload, updateEmp);
-router.delete("/empdelete/:empukid", authenticateJWT, attachDatabase, validate(deleteEmpSchema), deleteEmp);
+router.delete("/empdelete/:empukid", authenticateJWT, attachDatabase, validate(deleteEmpSchema, "params"), deleteEmp);
 
 export default router;
