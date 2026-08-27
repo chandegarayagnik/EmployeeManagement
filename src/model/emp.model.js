@@ -1,4 +1,4 @@
-import { DataTypes } from "sequelize";
+import { DataTypes, Sequelize } from "sequelize";
 
 const Employee = (sequelize) => {
   return sequelize.define(
@@ -198,7 +198,7 @@ const Employee = (sequelize) => {
       },
 
       LicenseDate: {
-        type: DataTypes.DATE,
+        type: DataTypes.STRING(200),
         allowNull: true
       },
 
@@ -235,7 +235,7 @@ const Employee = (sequelize) => {
       EntryTime: {
         type: DataTypes.DATE,
         allowNull: true,
-        defaultValue: DataTypes.NOW
+        defaultValue: Sequelize.literal("GETDATE()")
       },
 
       Flag: {
@@ -260,7 +260,7 @@ const Employee = (sequelize) => {
       },
 
       RegisterDate: {
-        type: DataTypes.DATE,
+        type: DataTypes.STRING(200),
         allowNull: true
       },
 

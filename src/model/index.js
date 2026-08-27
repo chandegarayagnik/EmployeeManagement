@@ -6,6 +6,7 @@ import SalaryModel from "./salary.model.js";
 import PayrollModel from "./payroll.model.js";
 import RegistrationModel from "./Registration.js";
 import CompanyModel from "./company.model.js";
+import { DynamicFieldMaster } from "./dynamicField.model.js";
 
 export const loadModels = (sequelize) => {
 
@@ -19,7 +20,7 @@ export const loadModels = (sequelize) => {
   models.Payroll = PayrollModel(sequelize);
   models.Registration = RegistrationModel(sequelize);
   models.Company = CompanyModel(sequelize);
-
+  models.DynamicFieldMaster = DynamicFieldMaster(sequelize);
   return models;
 };
 
