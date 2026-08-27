@@ -3,6 +3,7 @@ import path from "path";
 import bcrypt from "bcrypt";
 import { Op } from "sequelize";
 
+
 /**
  * Helper to extract photo filename from Multer req.files, req.file, or req.body
  */
@@ -219,116 +220,112 @@ const parseBoolean = (val, defaultVal) => {
     return defaultVal;
 };
 
-/**
- * Create or Update Employee with image upload support via Multer
- */
 export const createEmp = async (req, res) => {
-    const { Employee } = req.db.models;
-    const { sequelize } = req.db;
     try {
-        const rawFlag = req.body.Flag ?? req.body.flag ?? "A";
-        let flag = String(rawFlag).trim().toUpperCase();
-        if (flag === "ADD" || flag === "CREATE") flag = "A";
-        if (flag === "UPDATE" || flag === "EDIT") flag = "U";
+        const { sequelize } = req.db;
+        const { Employee } = req.db.models
+        const { Flag, Password } = req.body;
 
-        const photoFileName = getUploadedPhotoName(req);
-        const empIdentifier = req.body.Id || req.body.EmployeeId || req.body.empukid;
+        if (Flag === "A") {
 
-        // Hash password if provided in plaintext
-        let hashedPassword = req.body.Password;
-        if (req.body.Password && !String(req.body.Password).startsWith("$2a$") && !String(req.body.Password).startsWith("$2b$")) {
-            hashedPassword = await bcrypt.hash(String(req.body.Password), 10);
+            // const existingUser = await Employee.findOne({
+            //     where: {
+            //         UserName: UserName.trim(),
+            //         CustId: CustId.trim()
+            //     }
+            // });
+
+            // if (existingUser) {
+            //     return res.status(409).json({
+            //         status: false,
+            //         message: "Employee username already exists"
+            //     });
+            // }
+
+            const hashedPassword = await bcrypt.hash(
+                Password,
+                10
+            );
+
+            let imagePath = null;
+
+            if (req.file) {
+                imagePath = req.file.path.replace(/\\/g, "/");
+            }
+
+            const employee = await Employee.create({
+                ...req.body,
+                Img: imagePath,
+                Password: hashedPassword,
+                IPAddress: IPAddress || req.ip,
+            });
         }
 
-        if (flag === "A") {
-            const employeeData = {
-                ...req.body,
-                Img: photoFileName || (typeof req.body.Img === "string" && req.body.Img.trim() ? req.body.Img.trim() : null) || (typeof req.body.empphoto === "string" && req.body.empphoto.trim() ? req.body.empphoto.trim() : null) || null,
-                empphoto: photoFileName || (typeof req.body.empphoto === "string" && req.body.empphoto.trim() ? req.body.empphoto.trim() : null) || (typeof req.body.Img === "string" && req.body.Img.trim() ? req.body.Img.trim() : null) || null,
-                Flag: "A",
-            };
+        else if (Flag === "U") {
 
-            if (req.body.IsActive !== undefined) employeeData.IsActive = parseBoolean(req.body.IsActive, true);
-            if (req.body.IsLogin !== undefined) employeeData.IsLogin = parseBoolean(req.body.IsLogin, false);
-            if (req.body.IsFetchLocation !== undefined) employeeData.IsFetchLocation = parseBoolean(req.body.IsFetchLocation, false);
-            if (hashedPassword) employeeData.Password = hashedPassword;
-
-            const createdEmployee = await Employee.create(employeeData);
-
-            return res.status(200).json({
-                success: true,
-                message: "Employee Created Successfully",
-                data: createdEmployee,
-            });
-        } else if (flag === "U") {
-            if (!empIdentifier) {
+            if (!Id) {
                 return res.status(400).json({
-                    success: false,
-                    message: "Employee ID (Id, EmployeeId, or empukid) is required for update",
+                    status: false,
+                    message: "Id is required for update"
+                });
+            }
+            const employee = await Employee.findOne({
+                where: {
+                    Id: Id,
+                    CustId: CustId.trim()
+                }
+            });
+
+            if (!employee) {
+                return res.status(404).json({
+                    status: false,
+                    message: "Employee not found"
                 });
             }
 
-            // Find existing record to manage photo cleanup
-            const oldRecord = await Employee.findOne({
-                where: {
-                    [Op.or]: [
-                        { Id: empIdentifier },
-                        { EmployeeId: String(empIdentifier) },
-                        { empukid: String(empIdentifier) },
-                    ],
-                },
-            }).catch(() => null);
+            let imagePath = employee.Img;
 
-            const oldPhoto = oldRecord?.Img || oldRecord?.empphoto || null;
-            const updatedPhoto = photoFileName || oldPhoto;
-
-            // If a new photo is uploaded, delete the old photo file
-            if (photoFileName && oldPhoto && oldPhoto !== photoFileName) {
-                removePhotoFile(oldPhoto);
+            if (req.file) {
+                imagePath = req.file.path.replace(
+                    /\\/g,
+                    "/"
+                );
             }
 
-            const updateData = {
+            // ---------------------------------------------
+            let password = employee.Password;
+
+            if (Password) {
+                password = await bcrypt.hash(
+                    Password,
+                    10
+                );
+            }
+
+            await employee.update({
                 ...req.body,
-                Img: updatedPhoto,
-                empphoto: updatedPhoto,
-                Flag: "U",
-            };
-
-            if (req.body.IsActive !== undefined) updateData.IsActive = parseBoolean(req.body.IsActive, true);
-            if (req.body.IsLogin !== undefined) updateData.IsLogin = parseBoolean(req.body.IsLogin, false);
-            if (req.body.IsFetchLocation !== undefined) updateData.IsFetchLocation = parseBoolean(req.body.IsFetchLocation, false);
-            if (hashedPassword) updateData.Password = hashedPassword;
-
-            await Employee.update(updateData, {
-                where: {
-                    [Op.or]: [
-                        { Id: empIdentifier },
-                        { EmployeeId: String(empIdentifier) },
-                        { empukid: String(empIdentifier) },
-                    ],
-                },
-            });
-
-            return res.status(200).json({
-                success: true,
-                message: "Employee Updated Successfully",
-            });
-        } else {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid Flag value. Use 'A' for Add and 'U' for Update.",
+                Img: imagePath,
+                Password: password
             });
         }
-    } catch (error) {
-        console.error("CREATE/UPDATE EMPLOYEE ERROR:", error);
-        return res.status(500).json({
-            success: false,
-            message: error.message,
+
+        return res.status(201).json({
+            status: true,
+            message: Flag === "A" ? "Employee Created Successfully" : "Employee Updated Successfully",
         });
-    } finally {
-        if (sequelize) {
-            await sequelize.close();
-        }
+
+    } catch (error) {
+
+        console.error(
+            "Manage Employee Error:",
+            error
+        );
+
+        return res.status(500).json({
+            status: false,
+            message: "Something went wrong",
+            error: error.message
+        });
     }
 };
 

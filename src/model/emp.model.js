@@ -13,6 +13,7 @@ const Employee = (sequelize) => {
 
       EmployeeId: {
         type: DataTypes.STRING(100),
+        defaultValue: "",
         allowNull: true
       },
 
