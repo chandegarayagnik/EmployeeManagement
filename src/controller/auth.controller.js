@@ -193,147 +193,149 @@ export const login = async (req, res) => {
             });
         }
 
-        let user = null;
-        let isEmployeeAccount = false;
-        const isUserMode = loginType === 'User' || loginType === 'Employee';
+        let tokenPayload = {}
 
-        if (isUserMode) {
-            // USER LOGIN MODE: Strictly check EmployeeMaster table for employee credentials
-            if (Employee) {
-                const empRecord = await Employee.findOne({
-                    where: { UserName: Username.trim() }
-                });
-
-                if (empRecord) {
-                    const isMatch = await bcrypt.compare(Password, empRecord.Password);
-                    if (isMatch) {
-                        user = {
-                            Id: empRecord.Id,
-                            ClientUkeyId: empRecord.EmployeeId || `EMP-${empRecord.Id}`,
-                            CustId: empRecord.CustId,
-                            FirstName: empRecord.FirstName,
-                            LastName: empRecord.LastName,
-                            Mobile: empRecord.Mobile1,
-                            Email: empRecord.Email,
-                            Username: empRecord.UserName,
-                            Password: empRecord.Password,
-                            Role: empRecord.Role || "User",
-                            IsActive: empRecord.IsActive
-                        };
-                        isEmployeeAccount = true;
-                    }
+        if (loginType == 'Admin') {
+            const user = await Registration.findOne({
+                where: {
+                    Username: Username.trim()
                 }
-            }
-
-            if (!user) {
-                // If account exists in Registration table as Admin, instruct user to switch tab
-                const regCheck = await Registration.findOne({ where: { Username: Username.trim() } });
-                if (regCheck) {
-                    return res.status(401).json({
-                        status: false,
-                        message: "This is an Admin account. Please switch to 'Admin' mode above to log in."
-                    });
-                }
-                return res.status(401).json({
-                    status: false,
-                    message: "Invalid User Username or Password"
-                });
-            }
-        } else {
-            // ADMIN LOGIN MODE: Strictly check Registration / Admin accounts
-            const regRecord = await Registration.findOne({
-                where: { Username: Username.trim() }
             });
-
-            if (regRecord) {
-                const isMatch = await bcrypt.compare(Password, regRecord.Password);
-                if (isMatch) {
-                    user = regRecord.toJSON();
-                }
-            }
-
-            // Also check Employee table if account has Admin role
-            if (!user && Employee) {
-                const empRecord = await Employee.findOne({
-                    where: { UserName: Username.trim() }
-                });
-
-                if (empRecord && (empRecord.Role === 'Admin' || empRecord.Role === 'Administrator')) {
-                    const isMatch = await bcrypt.compare(Password, empRecord.Password);
-                    if (isMatch) {
-                        user = {
-                            Id: empRecord.Id,
-                            ClientUkeyId: empRecord.EmployeeId || `EMP-${empRecord.Id}`,
-                            CustId: empRecord.CustId,
-                            FirstName: empRecord.FirstName,
-                            LastName: empRecord.LastName,
-                            Mobile: empRecord.Mobile1,
-                            Email: empRecord.Email,
-                            Username: empRecord.UserName,
-                            Password: empRecord.Password,
-                            Role: empRecord.Role || "Admin",
-                            IsActive: empRecord.IsActive
-                        };
-                        isEmployeeAccount = true;
-                    }
-                } else if (empRecord && empRecord.Role !== 'Admin') {
-                    return res.status(401).json({
-                        status: false,
-                        message: "This is an Employee account. Please switch to 'User' mode above to log in."
-                    });
-                }
-            }
 
             if (!user) {
                 return res.status(401).json({
                     status: false,
-                    message: "Invalid Admin Username or Password"
+                    message: "Invalid Username or Password"
                 });
             }
-        }
 
-        if (!user.IsActive) {
-            return res.status(403).json({
-                status: false,
-                message: "Your Account Is Inactive"
+            if (!user.IsActive) {
+                return res.status(403).json({
+                    status: false,
+                    message: "Your Account Is Inactive"
+                });
+            }
+
+            const passwordMatch = await bcrypt.compare(
+                Password,
+                user.Password
+            );
+
+            console.log("passwordMatch", passwordMatch);
+
+            if (!passwordMatch) {
+                return res.status(401).json({
+                    status: false,
+                    message: "Invalid Username or Password"
+                });
+            }
+
+            if (user.Role != "Admin") {
+                return res.status(403).json({
+                    status: false,
+                    message: "You Are Not Authorized To Login As Admin Change The Role"
+                });
+            }
+
+            tokenPayload = {
+                Id: user.Id,
+                ClientUkeyId: user.ClientUkeyId,
+                CustId: user.CustId,
+                FirstName: user.FirstName,
+                LastName: user.LastName,
+                Mobile: user.Mobile,
+                Email: user.Email,
+                Username: user.Username,
+                LicenseDate: user.LicenseDate,
+                ReferenceBy: user.ReferenceBy,
+                Role: user.Role
+            };
+
+        }
+        else {
+            const { Sequelize } = req.db;
+            const Op = Sequelize?.Op || {};
+            const whereClause = Op.or 
+                ? { [Op.or]: [{ UserName: Username.trim() }, { Username: Username.trim() }] }
+                : { UserName: Username.trim() };
+
+            const user = await Employee.findOne({
+                where: whereClause
             });
+
+            if (!user) {
+                return res.status(401).json({
+                    status: false,
+                    message: "Invalid Username or Password"
+                });
+            }
+
+
+            if (!user.IsActive) {
+                return res.status(403).json({
+                    status: false,
+                    message: "Your Account Is Inactive"
+                });
+            }
+
+            const passwordMatch = await bcrypt.compare(
+                Password,
+                user.Password
+            );
+
+            console.log("passwordMatch", passwordMatch);
+
+            if (!passwordMatch) {
+                return res.status(401).json({
+                    status: false,
+                    message: "Invalid Username or Password"
+                });
+            }
+
+            if (user.Role == "Admin") {
+                return res.status(403).json({
+                    status: false,
+                    message: "You Are Not Authorized To Login As User Change The Role"
+                });
+            }
+
+            tokenPayload = {
+                Id: user.Id,
+                ClientUkeyId: user.ClientUkeyId,
+                CustId: user.CustId,
+                FirstName: user.FirstName,
+                LastName: user.LastName,
+                Mobile: user.Mobile,
+                Email: user.Email,
+                Username: user.Username,
+                LicenseDate: user.LicenseDate,
+                ReferenceBy: user.ReferenceBy,
+                Role: user.Role
+            };
         }
 
-        console.log("user", user);
-
-        const tokenPayload = {
-            Id: user.Id,
-            ClientUkeyId: user.ClientUkeyId,
-            CustId: user.CustId,
-            FirstName: user.FirstName,
-            LastName: user.LastName,
-            Mobile: user.Mobile,
-            Email: user.Email,
-            Username: user.Username,
-            LicenseDate: user.LicenseDate,
-            ReferenceBy: user.ReferenceBy,
-            Role: user.Role
-        };
+        console.log("tokenPayload", tokenPayload);
 
         const token = generateJWTT(tokenPayload);
 
         return res.status(200).json({
             status: true,
-            message: `${user.Role} login successful`,
+            message: `${loginType} login successful`,
             token,
-            Id: user.Id,
-            ClientUkeyId: user.ClientUkeyId,
-            CustId: user.CustId,
-            FirstName: user.FirstName,
-            LastName: user.LastName,
-            Mobile: user.Mobile,
-            Email: user.Email,
-            Username: user.Username,
-            Role: user.Role,
-            IsActive: user.IsActive,
-            IsDefault: user.IsDefault,
-            LicenseDate: user.LicenseDate,
-            ReferenceBy: user.ReferenceBy,
+            // Id: user.Id,
+            // ClientUkeyId: user.ClientUkeyId,
+            // CustId: user.CustId,
+            // FirstName: user.FirstName,
+            // LastName: user.LastName,
+            // Mobile: user.Mobile,
+            // Email: user.Email,
+            // Username: user.Username,
+            // Role: user.Role,
+            // IsActive: user.IsActive,
+            // IsDefault: user.IsDefault,
+            // LicenseDate: user.LicenseDate,
+            // ReferenceBy: user.ReferenceBy,
+            ...tokenPayload
         });
 
     } catch (error) {
