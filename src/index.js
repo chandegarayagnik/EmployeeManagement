@@ -8,7 +8,8 @@ import { dbConnection } from "./config/db.js";
 const app = express();
 const port = env.PORT || 4444;
 
-app.use("/", express.static("./media"));
+app.use("/media", express.static("./media"));
+app.use(express.static("public"));
 app.use(express.json());
 app.use(cors());
 app.use("/api", router);

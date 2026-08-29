@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Employee Master Hub - Management Portal</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap"
+    rel="stylesheet">
+
+  <!-- FontAwesome 6 Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Application CSS -->
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+
+<body>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- AUTHENTICATION VIEW (LOGIN & REGISTRATION) -->
+  <div id="auth-view" class="auth-wrapper">
+    <div class="auth-card">
+      <div class="auth-header">
+        <div class="auth-logo">
+          <i class="fas fa-users-cog"></i>
+        </div>
+        <h1 class="auth-title">Employee Hub</h1>
+        <p class="auth-subtitle">Portal Sign In & Admin Registration</p>
+      </div>
+
+      <!-- Auth Toggle Tabs -->
+      <div class="auth-tabs">
+        <button id="btn-show-login" class="auth-tab-btn active">
+          <i class="fas fa-lock"></i> Account Login
+        </button>
+        <button id="btn-show-signup" class="auth-tab-btn">
+          <i class="fas fa-user-plus"></i> Admin Registration
+        </button>
+      </div>
+
+      <!-- LOGIN FORM -->
+      <form id="form-login">
+        <div class="form-group">
+          <label class="form-label" for="login-username">Username <span class="req">*</span></label>
+          <div style="position:relative;">
+            <input type="text" id="login-username" class="form-control" placeholder="Enter your username" required
+              autocomplete="username">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="login-password">Password <span class="req">*</span></label>
+          <div style="position:relative;">
+            <input type="password" id="login-password" class="form-control" placeholder="Enter your password" required
+              autocomplete="current-password">
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block" style="margin-top: 1.5rem;">
+          <i class="fas fa-sign-in-alt"></i> Sign In to Portal
+        </button>
+      </form>
+
+      <!-- ADMIN REGISTRATION FORM -->
+      <form id="form-signup" class="hidden">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Client Key ID <span class="req">*</span></label>
+            <input type="text" id="reg-clientukeyid" class="form-control" placeholder="CLI-001" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Customer ID <span class="req">*</span></label>
+            <input type="text" id="reg-custid" class="form-control" placeholder="CUST-101" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Company Name</label>
+          <input type="text" id="reg-company" class="form-control" placeholder="Acme Technologies Inc.">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">First Name</label>
+            <input type="text" id="reg-firstname" class="form-control" placeholder="John">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Last Name</label>
+            <input type="text" id="reg-lastname" class="form-control" placeholder="Doe">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Username <span class="req">*</span></label>
+            <input type="text" id="reg-username" class="form-control" placeholder="admin_john" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Password <span class="req">*</span></label>
+            <input type="password" id="reg-password" class="form-control" placeholder="••••••••" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Email</label>
+            <input type="email" id="reg-email" class="form-control" placeholder="admin@company.com">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Mobile</label>
+            <input type="tel" id="reg-mobile" class="form-control" placeholder="+91 9876543210">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Role</label>
+            <select id="reg-role" class="form-control">
+              <option value="Admin" selected>Admin</option>
+              <option value="Manager">Manager</option>
+              <option value="HR">HR Executive</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Address</label>
+            <input type="text" id="reg-address" class="form-control" placeholder="Corporate HQ Address">
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block" style="margin-top: 1rem;">
+          <i class="fas fa-user-check"></i> Register Account
+        </button>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- MAIN APPLICATION DASHBOARD VIEW -->
+  <div id="main-app-view" class="app-container hidden">
+
+    <!-- SIDEBAR NAVIGATION -->
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-brand-icon">
+          <i class="fas fa-building-user"></i>
+        </div>
+        <div class="sidebar-brand-title">Employee Hub</div>
+      </div>
+
+      <div class="sidebar-menu">
+        <div class="menu-item active" data-tab="dashboard">
+          <i class="fas fa-chart-pie"></i>
+          <span>Dashboard</span>
+        </div>
+
+        <div class="menu-item" data-tab="employees">
+          <i class="fas fa-id-badge"></i>
+          <span>Employee Master</span>
+        </div>
+
+        <div class="menu-item" data-tab="departments">
+          <i class="fas fa-sitemap"></i>
+          <span>Departments</span>
+        </div>
+
+        <div class="menu-item" data-tab="registrations">
+          <i class="fas fa-users"></i>
+          <span>Registered Users</span>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="user-profile-card">
+          <div id="user-avatar-initial" class="user-avatar">A</div>
+          <div class="user-info">
+            <div id="user-display-name" class="user-name">Admin User</div>
+            <div id="user-display-role" class="user-role">System Admin</div>
+          </div>
+          <button id="btn-logout" class="btn btn-danger btn-icon btn-sm" title="Logout">
+            <i class="fas fa-sign-out-alt"></i>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+
+    <!-- MAIN CONTENT WRAPPER -->
+    <div class="main-wrapper">
+
+      <!-- TOP NAVBAR -->
+      <header class="top-navbar">
+        <div style="display:flex; align-items:center; gap:1rem;">
+          <button id="mobile-menu-toggle" class="btn btn-secondary btn-icon" style="display:none;" title="Menu">
+            <i class="fas fa-bars"></i>
+          </button>
+          <div class="navbar-title-group">
+            <h2 id="navbar-view-title">Employee Management Portal</h2>
+            <p>Welcome back! Manage system employees, roles, and registrations.</p>
+          </div>
+        </div>
+
+        <div class="navbar-actions" style="display:flex; align-items:center; gap:1rem;">
+          <div id="topbar-custid-badge" class="badge"
+            style="background:rgba(99, 102, 241, 0.15); color:#a5b4fc; border:1px solid rgba(99,102,241,0.3); font-size:0.85rem; padding:0.4rem 0.85rem; display:flex; align-items:center; gap:0.4rem;">
+            <i class="fas fa-id-card"></i> <span>Cust ID: <strong id="topbar-custid-value"
+                style="color:white;">-</strong></span>
+          </div>
+          <button class="btn btn-primary btn-sm"
+            onclick="document.querySelector('[data-tab=\'employees\']').click(); window.openAddEmployeeModal();">
+            <i class="fas fa-user-plus"></i> Quick Add Employee
+          </button>
+        </div>
+      </header>
+
+
+      <!-- CONTENT BODY -->
+      <main class="content-body">
+
+        <!-- TAB 1: DASHBOARD OVERVIEW -->
+        <section id="tab-content-dashboard" class="tab-content">
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-icon indigo">
+                <i class="fas fa-users"></i>
+              </div>
+              <div class="stat-details">
+                <h3 id="stat-total-emp">0</h3>
+                <p>Total Employees</p>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon emerald">
+                <i class="fas fa-user-check"></i>
+              </div>
+              <div class="stat-details">
+                <h3 id="stat-active-emp">0</h3>
+                <p>Active Staff</p>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon cyan">
+                <i class="fas fa-layer-group"></i>
+              </div>
+              <div class="stat-details">
+                <h3 id="stat-total-depts">0</h3>
+                <p>Departments</p>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon amber">
+                <i class="fas fa-user-shield"></i>
+              </div>
+              <div class="stat-details">
+                <h3 id="stat-total-users">0</h3>
+                <p>Registered Admins</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dashboard Recent Employee Activity Card -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Recent Employee Roster</div>
+              <button class="btn btn-secondary btn-sm"
+                onclick="document.querySelector('[data-tab=\'employees\']').click();">
+                View All Master Roster <i class="fas fa-arrow-right"></i>
+              </button>
+            </div>
+            <div class="table-responsive">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Employee Name</th>
+                    <th>Role</th>
+                    <th>Mobile</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="dashboard-recent-emp-tbody">
+                  <tr>
+                    <td colspan="5" style="text-align:center;" class="text-muted">Loading activity...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+
+        <!-- TAB 2: EMPLOYEE MASTER CRUD -->
+        <section id="tab-content-employees" class="tab-content hidden">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Employee Master Directory</div>
+                <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.2rem;">Create, Update, Filter, and
+                  Manage All Company Employees</p>
+              </div>
+
+              <div class="card-toolbar">
+                <div class="search-box">
+                  <i class="fas fa-search"></i>
+                  <input type="text" id="search-emp-input" class="form-control" placeholder="Search by name, email...">
+                </div>
+
+                <select id="filter-emp-department" class="form-control" style="width: auto; min-width: 170px;">
+                  <option value="">All Departments</option>
+                </select>
+
+                <select id="filter-emp-status" class="form-control" style="width: auto; min-width: 130px;">
+                  <option value="">All Status</option>
+                  <option value="true">Active</option>
+                  <option value="false">Inactive</option>
+                </select>
+
+                <button id="btn-add-employee" class="btn btn-primary">
+                  <i class="fas fa-plus-circle"></i> Add Employee
+                </button>
+              </div>
+            </div>
+
+            <!-- Employee Data Table -->
+            <div class="table-responsive">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Employee Info</th>
+                    <th>Username / CustId</th>
+                    <th>Contact Details</th>
+                    <th>Role</th>
+                    <th>Salary</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="employee-table-tbody">
+                  <!-- Dynamic JS rows -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Pagination Bar -->
+            <div class="pagination-wrapper">
+              <div id="pagination-info" class="pagination-info">Showing 0 to 0 of 0 employees</div>
+              <div id="pagination-controls" class="pagination-controls"></div>
+            </div>
+          </div>
+        </section>
+
+
+        <!-- TAB 3: DEPARTMENTS -->
+        <section id="tab-content-departments" class="tab-content hidden">
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:1.5rem;">
+
+            <!-- Department Form -->
+            <div class="card" style="height:fit-content;">
+              <div class="card-header">
+                <div class="card-title">Add / Update Department</div>
+              </div>
+              <div style="padding:1.5rem;">
+                <form id="form-department">
+                  <input type="hidden" id="dept-id">
+                  <div class="form-group">
+                    <label class="form-label">Department Name <span class="req">*</span></label>
+                    <input type="text" id="dept-name" class="form-control" placeholder="e.g. Engineering, Sales, HR"
+                      required>
+                  </div>
+                  <button type="submit" class="btn btn-primary btn-block">
+                    <i class="fas fa-save"></i> Save Department
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            <!-- Department Table -->
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Department Master List</div>
+              </div>
+              <div class="table-responsive">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Department Name</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="department-table-tbody">
+                    <!-- Dynamic JS rows -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+
+        <!-- TAB 4: REGISTERED USERS -->
+        <section id="tab-content-registrations" class="tab-content hidden">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Registered System Accounts</div>
+            </div>
+            <div class="table-responsive">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Customer ID</th>
+                    <th>Full Name</th>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="registrations-table-tbody">
+                  <!-- Dynamic JS rows -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+
+  <!-- CREATE & EDIT EMPLOYEE MODAL -->
+  <div id="modal-employee-form" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-employee-title" class="modal-title">Manage Employee Master</h3>
+        <button class="modal-close" onclick="closeModal('modal-employee-form')">&times;</button>
+      </div>
+
+      <form id="form-employee" enctype="multipart/form-data">
+        <input type="hidden" name="Flag" id="emp-flag" value="A">
+        <input type="hidden" name="Id" id="emp-id" value="">
+
+        <div class="modal-body">
+
+          <!-- Photo Upload Header -->
+          <div class="photo-upload-container">
+            <div id="emp-photo-preview" class="photo-preview-box">
+              <i class="fas fa-user"></i>
+            </div>
+            <div>
+              <label class="form-label" style="margin-bottom:0.25rem;">Employee Photo</label>
+              <input type="file" name="Img" id="emp-img-file" accept="image/*" class="form-control"
+                style="font-size:0.8rem; padding:0.4rem;">
+              <p style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">Upload JPG, PNG, WEBP photo
+                (Max 10MB)</p>
+            </div>
+          </div>
+
+          <!-- Section 1: Basic & Credentials -->
+          <div class="form-section-title"><i class="fas fa-id-card"></i> Basic & Account Credentials</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">First Name <span class="req">*</span></label>
+              <input type="text" name="FirstName" id="emp-firstname" class="form-control" placeholder="First Name"
+                required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Last Name</label>
+              <input type="text" name="LastName" id="emp-lastname" class="form-control" placeholder="Last Name">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Customer ID (CustId) <span class="req">*</span> <small id="emp-custid-hint"
+                  class="text-muted">(Fixed to Admin CustId)</small></label>
+              <input type="text" name="CustId" id="emp-custid" class="form-control" placeholder="CUST-001" readonly
+                style="background-color: rgba(15, 23, 42, 0.8); cursor: not-allowed; opacity: 0.8;" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Username <span class="req">*</span></label>
+              <input type="text" name="UserName" id="emp-username" class="form-control" placeholder="unique_username"
+                required>
+            </div>
+          </div>
+
+          <div id="emp-password-group" class="form-group">
+            <label class="form-label">Password <span class="req">*</span></label>
+            <input type="password" name="Password" id="emp-password" class="form-control"
+              placeholder="Account Password">
+          </div>
+
+          <!-- Section 2: Contact & Demographics -->
+          <div class="form-section-title"><i class="fas fa-envelope"></i> Contact & Personal Information</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Email Address</label>
+              <input type="email" name="Email" id="emp-email" class="form-control" placeholder="employee@company.com">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Mobile Phone</label>
+              <input type="tel" name="Mobile1" id="emp-mobile1" class="form-control" placeholder="+91 9876543210">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Gender</label>
+              <select name="Gender" id="emp-gender" class="form-control">
+                <option value="">-- Select --</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Date of Birth</label>
+              <input type="date" name="DOB" id="emp-dob" class="form-control">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Date of Joining</label>
+              <input type="date" name="DOJ" id="emp-doj" class="form-control">
+            </div>
+          </div>
+
+          <!-- Section 3: Job Role & Compensation -->
+          <div class="form-section-title"><i class="fas fa-briefcase"></i> Role, Department & Compensation</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Department</label>
+              <select name="DepartmentId" id="emp-departmentid" class="form-control">
+                <option value="">-- Select Department --</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Role / Position</label>
+              <input type="text" name="Role" id="emp-role" class="form-control"
+                placeholder="e.g. Software Engineer, Sales Manager">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Salary Amount</label>
+              <input type="number" name="SalaryAmount" id="emp-salaryamount" class="form-control" placeholder="50000">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Salary Type</label>
+              <select name="SalaryType" id="emp-salarytype" class="form-control">
+                <option value="Monthly">Monthly</option>
+                <option value="Hourly">Hourly</option>
+                <option value="Fixed">Fixed Contract</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Account Status</label>
+              <select name="IsActive" id="emp-isactive" class="form-control">
+                <option value="true" selected>Active</option>
+                <option value="false">Inactive</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Section 4: Address, Banking & Tax Details -->
+          <div class="form-section-title"><i class="fas fa-university"></i> Address, Tax & Banking Info</div>
+          <div class="form-group">
+            <label class="form-label">Street Address</label>
+            <input type="text" name="Add1" id="emp-add1" class="form-control" placeholder="Full Home Address">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">PAN Number</label>
+              <input type="text" name="PAN" id="emp-pan" class="form-control" placeholder="ABCDE1234F">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Bank Name</label>
+              <input type="text" name="BankName" id="emp-bankname" class="form-control"
+                placeholder="HDFC / SBI / ICICI">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Account Number</label>
+              <input type="text" name="AccNo" id="emp-accno" class="form-control" placeholder="123456789012">
+            </div>
+            <div class="form-group">
+              <label class="form-label">IFSC Code</label>
+              <input type="text" name="IFSC" id="emp-ifsc" class="form-control" placeholder="HDFC0001234">
+            </div>
+          </div>
+
+          <!-- Section 5: Qualifications -->
+          <div class="form-section-title"><i class="fas fa-graduation-cap"></i> Education Qualification</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Highest Degree</label>
+              <input type="text" name="HighestDegree" id="emp-highestdegree" class="form-control"
+                placeholder="Bachelor's / Master's">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Degree Specialization</label>
+              <input type="text" name="DegreeName" id="emp-degreename" class="form-control"
+                placeholder="Computer Science / B.Com">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">University / College</label>
+              <input type="text" name="UniversityName" id="emp-universityname" class="form-control"
+                placeholder="University Name">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Passing Year</label>
+              <input type="text" name="PassingYear" id="emp-passingyear" class="form-control" placeholder="2022">
+            </div>
+          </div>
+
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-employee-form')">
+            <i class="fas fa-arrow-left"></i> Back to Employee List
+          </button>
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-check-circle"></i> Save Employee Record
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- VIEW EMPLOYEE PROFILE MODAL -->
+  <div id="modal-view-employee" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 800px;">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fas fa-id-card-alt"></i> Employee Profile Details</h3>
+        <button class="modal-close" onclick="closeModal('modal-view-employee')">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div id="view-emp-header"></div>
+        <div id="view-emp-body"></div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-view-employee')">
+          <i class="fas fa-arrow-left"></i> Back to Roster
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- CONFIRM DELETE MODAL -->
+  <div id="modal-delete-confirm" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 440px;">
+      <div class="modal-header" style="background: rgba(239, 68, 68, 0.1);">
+        <h3 class="modal-title" style="color:var(--accent-danger);"><i class="fas fa-exclamation-triangle"></i> Confirm
+          Deletion</h3>
+        <button class="modal-close" onclick="closeModal('modal-delete-confirm')">&times;</button>
+      </div>
+
+      <div class="modal-body" style="text-align:center; padding: 2rem 1.5rem;">
+        <i class="fas fa-trash-alt fa-3x" style="color:var(--accent-danger); margin-bottom:1rem;"></i>
+        <p style="font-size:1.1rem; font-weight:600;">Are you sure?</p>
+        <p style="font-size:0.9rem; color:var(--text-muted); margin-top:0.4rem;">
+          You are about to permanently delete employee <strong id="delete-emp-name" style="color:white;"></strong>. This
+          action cannot be undone.
+        </p>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-delete-confirm')">Cancel</button>
+        <button id="btn-confirm-delete" class="btn btn-danger">Delete Employee</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FULL PAGE IMAGE LIGHTBOX PREVIEW MODAL -->
+  <div id="modal-image-lightbox" class="modal-overlay hidden"
+    style="z-index: 99999; background: rgba(0, 0, 0, 0.92); backdrop-filter: blur(12px);"
+    onclick="closeModal('modal-image-lightbox')">
+    <div
+      style="position: relative; max-width: 90vw; max-height: 90vh; display: flex; flex-direction: column; align-items: center; justify-content: center;"
+      onclick="event.stopPropagation()">
+      <button class="modal-close"
+        style="position: absolute; top: -45px; right: 0; color: white; font-size: 2.2rem; background: none; border: none; cursor: pointer; text-shadow: 0 2px 10px rgba(0,0,0,0.8);"
+        onclick="closeModal('modal-image-lightbox')">&times;</button>
+      <img id="lightbox-image-src" src="" alt="Full Screen Preview"
+        style="max-width: 90vw; max-height: 82vh; object-fit: contain; border-radius: 12px; box-shadow: 0 25px 60px rgba(0,0,0,0.9); border: 2px solid rgba(255,255,255,0.2); transition: transform 0.3s ease;">
+      <div id="lightbox-image-title"
+        style="margin-top: 1rem; color: #f8fafc; font-size: 1.1rem; font-weight: 600; text-shadow: 0 2px 6px rgba(0,0,0,0.9); font-family:'Outfit', sans-serif;">
+      </div>
+    </div>
+  </div>
+
+  <!-- App Entry Script -->
+  <script type="module" src="./js/app.js"></script>
+</body>
+
+</html>
