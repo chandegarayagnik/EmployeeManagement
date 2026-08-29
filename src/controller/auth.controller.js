@@ -183,7 +183,7 @@ export const signup = async (req, res) => {
 };
 
 export const login = async (req, res) => {
-    const { Registration } = req.db.models;
+    const { Registration, Employee } = req.db.models;
     const { Username, Password } = req.body;
     try {
         if (!Username || !Password) {
@@ -193,13 +193,37 @@ export const login = async (req, res) => {
             });
         }
 
-        const user = await Registration.findOne({
+        let userRecord = await Registration.findOne({
             where: {
                 Username: Username.trim()
             }
         });
 
-        console.log("user", user);
+        let user = userRecord ? userRecord.toJSON() : null;
+
+        if (!user && Employee) {
+            const empRecord = await Employee.findOne({
+                where: {
+                    UserName: Username.trim()
+                }
+            });
+
+            if (empRecord) {
+                user = {
+                    Id: empRecord.Id,
+                    ClientUkeyId: empRecord.EmployeeId || `EMP-${empRecord.Id}`,
+                    CustId: empRecord.CustId,
+                    FirstName: empRecord.FirstName,
+                    LastName: empRecord.LastName,
+                    Mobile: empRecord.Mobile1,
+                    Email: empRecord.Email,
+                    Username: empRecord.UserName,
+                    Password: empRecord.Password,
+                    Role: empRecord.Role || "User",
+                    IsActive: empRecord.IsActive
+                };
+            }
+        }
 
         if (!user) {
             return res.status(401).json({

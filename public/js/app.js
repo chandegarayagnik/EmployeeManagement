@@ -1,7 +1,8 @@
-import { AuthStorage, hashPassword } from './api.js';
+import { AuthStorage } from './api.js';
 import { AuthModule } from './auth.js';
 import { EmployeeModule } from './employee.js';
 import { DepartmentModule } from './department.js';
+import { AttendanceModule } from './attendance.js';
 
 // Global Application State
 const AppState = {
@@ -100,6 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initNavigation();
   initEmployeeEvents();
   initDepartmentEvents();
+  initAttendanceEvents();
   checkAuthAndRender();
 });
 
@@ -144,8 +146,7 @@ function initAuthUI() {
       submitBtn.disabled = true;
 
       try {
-        const hashedPassword = await hashPassword(password);
-        const res = await AuthModule.login(username, hashedPassword);
+        const res = await AuthModule.login(username, password);
         showToast(res.message || 'Login Successful!', 'success');
         checkAuthAndRender();
       } catch (err) {
@@ -167,7 +168,7 @@ function initAuthUI() {
         ClientUkeyId: document.getElementById('reg-clientukeyid').value.trim() || `CLI-${Date.now()}`,
         CustId: document.getElementById('reg-custid').value.trim(),
         Username: document.getElementById('reg-username').value.trim(),
-        Password: await hashPassword(rawPassword),
+        Password: rawPassword,
         CompanyName: document.getElementById('reg-company').value.trim() || 'My Company',
         FirstName: document.getElementById('reg-firstname').value.trim(),
         LastName: document.getElementById('reg-lastname').value.trim(),
@@ -230,21 +231,55 @@ function checkAuthAndRender() {
 
     const user = AuthStorage.getUser();
     if (user) {
-      document.getElementById('user-display-name').textContent = `${user.FirstName || ''} ${user.LastName || ''}`.trim() || user.Username || 'Admin User';
-      document.getElementById('user-display-role').textContent = user.Role || 'Administrator';
-      document.getElementById('user-avatar-initial').textContent = (user.FirstName || user.Username || 'A').charAt(0).toUpperCase();
+      document.getElementById('user-display-name').textContent = `${user.FirstName || ''} ${user.LastName || ''}`.trim() || user.Username || 'User';
+      document.getElementById('user-display-role').textContent = user.Role || 'Employee';
+      document.getElementById('user-avatar-initial').textContent = (user.FirstName || user.Username || 'U').charAt(0).toUpperCase();
 
       // Display CustId in panel topbar
       const topbarCustId = document.getElementById('topbar-custid-value');
       if (topbarCustId) {
         topbarCustId.textContent = user.CustId || 'N/A';
       }
+
+      setupRoleBasedUI(user);
     }
 
     switchTab(AppState.activeTab);
   } else {
     authView.classList.remove('hidden');
     mainAppView.classList.add('hidden');
+  }
+}
+
+function setupRoleBasedUI(user) {
+  const isAdmin = user && (user.Role === 'Admin' || user.Role === 'Administrator');
+
+  const navDepts = document.querySelector('[data-tab="departments"]');
+  const navUsers = document.querySelector('[data-tab="registrations"]');
+  const navMyProfile = document.getElementById('nav-item-myprofile');
+  const navAttTitle = document.getElementById('nav-attendance-title');
+  const quickAddBtn = document.querySelector('.navbar-actions');
+  const thAttActions = document.getElementById('th-attendance-actions');
+
+  if (isAdmin) {
+    if (navDepts) navDepts.classList.remove('hidden');
+    if (navUsers) navUsers.classList.remove('hidden');
+    if (navMyProfile) navMyProfile.classList.add('hidden');
+    if (navAttTitle) navAttTitle.textContent = 'Attendance Master';
+    if (quickAddBtn) quickAddBtn.classList.remove('hidden');
+    if (thAttActions) thAttActions.textContent = 'Admin Actions';
+  } else {
+    // Non-admin / Employee User Panel
+    if (navDepts) navDepts.classList.add('hidden');
+    if (navUsers) navUsers.classList.add('hidden');
+    if (navMyProfile) navMyProfile.classList.remove('hidden');
+    if (navAttTitle) navAttTitle.textContent = 'My Attendance';
+    if (quickAddBtn) quickAddBtn.classList.add('hidden');
+    if (thAttActions) thAttActions.textContent = 'Status Note';
+
+    if (['departments', 'registrations'].includes(AppState.activeTab)) {
+      AppState.activeTab = 'attendance';
+    }
   }
 }
 
@@ -300,6 +335,10 @@ function switchTab(tabName) {
     loadDepartmentList();
   } else if (tabName === 'registrations') {
     loadRegistrationList();
+  } else if (tabName === 'attendance') {
+    loadAttendanceList();
+  } else if (tabName === 'myprofile') {
+    loadMyProfile();
   }
 }
 
@@ -790,15 +829,13 @@ async function handleEmployeeFormSubmit(e) {
       showToast('Password is required when creating a new employee!', 'error');
       return;
     }
-    const hashedPass = await hashPassword(rawPassword);
-    formData.set('Password', hashedPass);
+    formData.set('Password', rawPassword);
   } else if (flag === 'U') {
     // On UPDATE: If password is empty or bullet placeholder, remove Password so existing password is kept!
     if (!rawPassword || rawPassword.trim() === '' || rawPassword.trim() === '••••••••') {
       formData.delete('Password');
     } else {
-      const hashedPass = await hashPassword(rawPassword);
-      formData.set('Password', hashedPass);
+      formData.set('Password', rawPassword);
     }
   }
 
@@ -1008,4 +1045,245 @@ async function loadRegistrationList() {
   } catch (err) {
     tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--accent-danger);">${err.message || 'Failed to load registrations'}</td></tr>`;
   }
+}
+
+// ATTENDANCE MANAGEMENT LOGIC
+function initAttendanceEvents() {
+  const checkInBtn = document.getElementById('btn-punch-checkin');
+  const checkOutBtn = document.getElementById('btn-punch-checkout');
+  const attForm = document.getElementById('form-attendance-edit');
+
+  const today = new Date().toISOString().split('T')[0];
+  const dateDisplay = document.getElementById('punch-date-display');
+  if (dateDisplay) {
+    dateDisplay.textContent = `Today: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`;
+  }
+
+  // Filter Date & Status event listeners
+  const filterDate = document.getElementById('filter-attendance-date');
+  const filterStatus = document.getElementById('filter-attendance-status');
+
+  if (filterDate) filterDate.addEventListener('change', loadAttendanceList);
+  if (filterStatus) filterStatus.addEventListener('change', loadAttendanceList);
+
+  if (checkInBtn) {
+    checkInBtn.addEventListener('click', async () => {
+      const user = AuthStorage.getUser();
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const empUkid = user?.ClientUkeyId || user?.Username || 'EMP-1';
+
+      try {
+        checkInBtn.disabled = true;
+        await AttendanceModule.addOrUpdateAttendance({
+          empukid: empUkid,
+          date: today,
+          check_in: timeStr,
+          status: 'Present',
+          Flag: 'A'
+        });
+        showToast(`Checked In successfully at ${timeStr}!`, 'success');
+        loadAttendanceList();
+      } catch (err) {
+        showToast(err.message || 'Check-in failed', 'error');
+      } finally {
+        checkInBtn.disabled = false;
+      }
+    });
+  }
+
+  if (checkOutBtn) {
+    checkOutBtn.addEventListener('click', async () => {
+      const user = AuthStorage.getUser();
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const empUkid = user?.ClientUkeyId || user?.Username || 'EMP-1';
+
+      try {
+        checkOutBtn.disabled = true;
+        await AttendanceModule.addOrUpdateAttendance({
+          empukid: empUkid,
+          date: today,
+          check_out: timeStr,
+          status: 'Present',
+          Flag: 'A'
+        });
+        showToast(`Checked Out successfully at ${timeStr}!`, 'success');
+        loadAttendanceList();
+      } catch (err) {
+        showToast(err.message || 'Check-out failed', 'error');
+      } finally {
+        checkOutBtn.disabled = false;
+      }
+    });
+  }
+
+  // Admin edit attendance submit
+  if (attForm) {
+    attForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const user = AuthStorage.getUser();
+      const isAdmin = user && (user.Role === 'Admin' || user.Role === 'Administrator');
+      if (!isAdmin) {
+        showToast('Only Admin can edit attendance records!', 'error');
+        return;
+      }
+
+      const id = document.getElementById('edit-att-id').value;
+      const empukid = document.getElementById('edit-att-empukid').value;
+      const date = document.getElementById('edit-att-date').value;
+      const check_in = document.getElementById('edit-att-checkin').value;
+      const check_out = document.getElementById('edit-att-checkout').value;
+      const status = document.getElementById('edit-att-status').value;
+
+      try {
+        await AttendanceModule.addOrUpdateAttendance({
+          id,
+          empukid,
+          date,
+          check_in,
+          check_out,
+          status,
+          Flag: 'U'
+        });
+        showToast('Attendance updated successfully by Admin!', 'success');
+        window.closeModal('modal-attendance-edit');
+        loadAttendanceList();
+      } catch (err) {
+        showToast(err.message || 'Failed to update attendance', 'error');
+      }
+    });
+  }
+}
+
+async function loadAttendanceList() {
+  const tbody = document.getElementById('attendance-table-tbody');
+  if (!tbody) return;
+
+  const user = AuthStorage.getUser();
+  const isAdmin = user && (user.Role === 'Admin' || user.Role === 'Administrator');
+
+  tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;" class="text-muted"><i class="fas fa-spinner fa-spin"></i> Loading attendance logs...</td></tr>`;
+
+  try {
+    const params = {};
+    if (!isAdmin && user) {
+      params.empukid = user.ClientUkeyId || user.Username;
+    }
+
+    const dateFilter = document.getElementById('filter-attendance-date')?.value;
+    const statusFilter = document.getElementById('filter-attendance-status')?.value;
+    if (dateFilter) params.date = dateFilter;
+    if (statusFilter) params.status = statusFilter;
+
+    const res = await AttendanceModule.getAttendance(params);
+    const logs = res.data || [];
+
+    if (logs.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;" class="text-muted">No attendance logs recorded yet.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = logs.map(att => {
+      const statusClass = att.status === 'Present' ? 'badge-active' : att.status === 'Absent' ? 'badge-inactive' : 'badge-role';
+      const actionHtml = isAdmin 
+        ? `<div style="display:flex; gap:0.4rem;">
+             <button class="btn btn-primary btn-sm" title="Edit (Admin Only)" onclick="window.openEditAttendanceModal('${att.id}', '${att.empukid}', '${att.date}', '${att.check_in||''}', '${att.check_out||''}', '${att.status||'Present'}')">
+               <i class="fas fa-edit"></i> Edit
+             </button>
+             <button class="btn btn-danger btn-sm" title="Delete (Admin Only)" onclick="window.deleteAttendanceRecord('${att.id}')">
+               <i class="fas fa-trash-alt"></i>
+             </button>
+           </div>`
+        : `<span style="font-size:0.75rem; color:var(--text-muted);"><i class="fas fa-lock"></i> Read-Only (Admin Edit Only)</span>`;
+
+      return `
+        <tr>
+          <td><strong>${att.date || 'N/A'}</strong></td>
+          <td>
+            <div><strong>${att.name || att.empukid || 'Employee'}</strong></div>
+            <div style="font-size:0.75rem;" class="text-muted">UKID: ${att.empukid || 'N/A'}</div>
+          </td>
+          <td><span class="text-success"><i class="fas fa-sign-in-alt"></i> ${att.check_in || 'N/A'}</span></td>
+          <td><span class="text-warning"><i class="fas fa-sign-out-alt"></i> ${att.check_out || 'N/A'}</span></td>
+          <td><span class="badge ${statusClass}">${att.status || 'Present'}</span></td>
+          <td>${actionHtml}</td>
+        </tr>
+      `;
+    }).join('');
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--accent-danger);">${err.message || 'Error loading attendance logs'}</td></tr>`;
+  }
+}
+
+window.openEditAttendanceModal = function(id, empukid, date, checkIn, checkOut, status) {
+  const user = AuthStorage.getUser();
+  const isAdmin = user && (user.Role === 'Admin' || user.Role === 'Administrator');
+  if (!isAdmin) {
+    showToast('Only Admin can edit attendance records!', 'error');
+    return;
+  }
+
+  document.getElementById('edit-att-id').value = id;
+  document.getElementById('edit-att-empukid').value = empukid;
+  document.getElementById('edit-att-date').value = date || '';
+  document.getElementById('edit-att-checkin').value = checkIn || '';
+  document.getElementById('edit-att-checkout').value = checkOut || '';
+  document.getElementById('edit-att-status').value = status || 'Present';
+
+  window.openModal('modal-attendance-edit');
+};
+
+window.deleteAttendanceRecord = async function(id) {
+  const user = AuthStorage.getUser();
+  const isAdmin = user && (user.Role === 'Admin' || user.Role === 'Administrator');
+  if (!isAdmin) {
+    showToast('Only Admin can delete attendance records!', 'error');
+    return;
+  }
+
+  if (!confirm('Are you sure you want to delete this attendance record?')) return;
+  try {
+    await AttendanceModule.deleteAttendance(id);
+    showToast('Attendance record deleted successfully!', 'success');
+    loadAttendanceList();
+  } catch (err) {
+    showToast(err.message || 'Failed to delete attendance', 'error');
+  }
+};
+
+// MY PROFILE LOGIC FOR EMPLOYEE USER PANEL
+async function loadMyProfile() {
+  const container = document.getElementById('myprofile-card-content');
+  if (!container) return;
+
+  const user = AuthStorage.getUser();
+  if (!user) {
+    container.innerHTML = `<p class="text-muted">No profile details available.</p>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <div style="display:flex; align-items:center; gap:2rem; flex-wrap:wrap; margin-bottom:2rem;">
+      <div style="width:110px; height:110px; border-radius:50%; background:var(--accent-primary); color:white; display:flex; align-items:center; justify-content:center; font-size:3rem; font-weight:700; border:4px solid var(--accent-secondary); box-shadow:0 10px 25px rgba(99,102,241,0.4);">
+        ${(user.FirstName || user.Username || 'E').charAt(0).toUpperCase()}
+      </div>
+      <div>
+        <h2 style="font-size:1.8rem; font-weight:700; color:white;">${user.FirstName || ''} ${user.LastName || ''}</h2>
+        <div style="margin-top:0.4rem; display:flex; gap:0.5rem;">
+          <span class="badge badge-role">${user.Role || 'Employee'}</span>
+          <span class="badge badge-active"><i class="fas fa-check-circle"></i> Active Account</span>
+        </div>
+        <p style="font-size:0.9rem; color:var(--text-muted); margin-top:0.5rem;">Username: <strong>${user.Username || ''}</strong> | CustID: <strong>${user.CustId || ''}</strong></p>
+      </div>
+    </div>
+
+    <div class="form-section-title"><i class="fas fa-id-card"></i> Personal Details</div>
+    <div class="detail-grid">
+      <div class="detail-item"><div class="detail-label">Full Name</div><div class="detail-value">${user.FirstName || ''} ${user.LastName || ''}</div></div>
+      <div class="detail-item"><div class="detail-label">Username</div><div class="detail-value">${user.Username || 'N/A'}</div></div>
+      <div class="detail-item"><div class="detail-label">Email Address</div><div class="detail-value">${user.Email || 'N/A'}</div></div>
+      <div class="detail-item"><div class="detail-label">Mobile Contact</div><div class="detail-value">${user.Mobile || 'N/A'}</div></div>
+    </div>
+  `;
 }

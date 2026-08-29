@@ -175,6 +175,16 @@
           <i class="fas fa-users"></i>
           <span>Registered Users</span>
         </div>
+
+        <div id="nav-item-attendance" class="menu-item" data-tab="attendance">
+          <i class="fas fa-calendar-check"></i>
+          <span id="nav-attendance-title">Attendance Master</span>
+        </div>
+
+        <div id="nav-item-myprofile" class="menu-item hidden" data-tab="myprofile">
+          <i class="fas fa-user-circle"></i>
+          <span>My Profile</span>
+        </div>
       </div>
 
       <div class="sidebar-footer">
@@ -435,6 +445,79 @@
           </div>
         </section>
 
+
+        <!-- TAB 5: ATTENDANCE MASTER / MY ATTENDANCE -->
+        <section id="tab-content-attendance" class="tab-content hidden">
+          <!-- Punch Attendance Card -->
+          <div class="card" style="margin-bottom:1.5rem; background: linear-gradient(135deg, rgba(30,41,59,0.9), rgba(15,23,42,0.9)); border:1px solid rgba(99,102,241,0.2);">
+            <div style="padding:1.5rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem;">
+              <div>
+                <h3 style="font-size:1.2rem; font-weight:700; color:white;"><i class="fas fa-clock text-success"></i> Attendance Punch Portal</h3>
+                <p style="font-size:0.85rem; color:var(--text-muted); margin-top:0.2rem;" id="punch-date-display">Today: Loading date...</p>
+              </div>
+              <div style="display:flex; align-items:center; gap:1rem;">
+                <button id="btn-punch-checkin" class="btn btn-primary">
+                  <i class="fas fa-sign-in-alt"></i> Punch Check-In
+                </button>
+                <button id="btn-punch-checkout" class="btn btn-secondary">
+                  <i class="fas fa-sign-out-alt"></i> Punch Check-Out
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Attendance Logs Table Card -->
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div id="attendance-card-title" class="card-title">Attendance History Logs</div>
+                <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.2rem;">Track daily check-in, check-out, and attendance status</p>
+              </div>
+              <div class="card-toolbar">
+                <input type="date" id="filter-attendance-date" class="form-control" style="width:auto;">
+                <select id="filter-attendance-status" class="form-control" style="width:auto;">
+                  <option value="">All Status</option>
+                  <option value="Present">Present</option>
+                  <option value="Absent">Absent</option>
+                  <option value="Half Day">Half Day</option>
+                </select>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Employee ID / Name</th>
+                    <th>Check In</th>
+                    <th>Check Out</th>
+                    <th>Status</th>
+                    <th id="th-attendance-actions">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="attendance-table-tbody">
+                  <!-- Dynamic Attendance Rows -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+
+        <!-- TAB 6: MY PROFILE (For Employee User Panel) -->
+        <section id="tab-content-myprofile" class="tab-content hidden">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">My Employee Profile</div>
+            </div>
+            <div style="padding:2rem;">
+              <div id="myprofile-card-content">
+                <!-- Populated dynamically -->
+              </div>
+            </div>
+          </div>
+        </section>
+
       </main>
     </div>
   </div>
@@ -680,8 +763,7 @@
   <div id="modal-delete-confirm" class="modal-overlay hidden">
     <div class="modal-content" style="max-width: 440px;">
       <div class="modal-header" style="background: rgba(239, 68, 68, 0.1);">
-        <h3 class="modal-title" style="color:var(--accent-danger);"><i class="fas fa-exclamation-triangle"></i> Confirm
-          Deletion</h3>
+        <h3 class="modal-title" style="color:var(--accent-danger);"><i class="fas fa-exclamation-triangle"></i> Confirm Deletion</h3>
         <button class="modal-close" onclick="closeModal('modal-delete-confirm')">&times;</button>
       </div>
 
@@ -689,8 +771,7 @@
         <i class="fas fa-trash-alt fa-3x" style="color:var(--accent-danger); margin-bottom:1rem;"></i>
         <p style="font-size:1.1rem; font-weight:600;">Are you sure?</p>
         <p style="font-size:0.9rem; color:var(--text-muted); margin-top:0.4rem;">
-          You are about to permanently delete employee <strong id="delete-emp-name" style="color:white;"></strong>. This
-          action cannot be undone.
+          You are about to permanently delete employee <strong id="delete-emp-name" style="color:white;"></strong>. This action cannot be undone.
         </p>
       </div>
 
@@ -698,6 +779,49 @@
         <button class="btn btn-secondary" onclick="closeModal('modal-delete-confirm')">Cancel</button>
         <button id="btn-confirm-delete" class="btn btn-danger">Delete Employee</button>
       </div>
+    </div>
+  </div>
+
+  <!-- EDIT ATTENDANCE MODAL (ADMIN ONLY) -->
+  <div id="modal-attendance-edit" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fas fa-calendar-alt"></i> Edit Employee Attendance</h3>
+        <button class="modal-close" onclick="closeModal('modal-attendance-edit')">&times;</button>
+      </div>
+      <form id="form-attendance-edit">
+        <input type="hidden" id="edit-att-id">
+        <input type="hidden" id="edit-att-empukid">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Attendance Date</label>
+            <input type="date" id="edit-att-date" class="form-control" required>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Check-In Time</label>
+              <input type="text" id="edit-att-checkin" class="form-control" placeholder="09:00 AM">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Check-Out Time</label>
+              <input type="text" id="edit-att-checkout" class="form-control" placeholder="05:30 PM">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Attendance Status</label>
+            <select id="edit-att-status" class="form-control">
+              <option value="Present">Present</option>
+              <option value="Absent">Absent</option>
+              <option value="Half Day">Half Day</option>
+              <option value="On Leave">On Leave</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-attendance-edit')">Cancel</button>
+          <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i> Save Attendance</button>
+        </div>
+      </form>
     </div>
   </div>
 
