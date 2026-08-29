@@ -10,7 +10,7 @@ export const dbConnection = async (DB_NAME = env.DB_NAME, DB_USER = env.DB_USER,
             DB_PASSWORD,
             {
                 host: DB_SERVER,
-                dialect: "mssql",
+                dialect: env.DB_DIALECT,
                 dialectOptions: {
                     options: {
                         encrypt: true,

@@ -1,26 +1,6 @@
 import fs from "fs";
 import path from "path";
 import bcrypt from "bcrypt";
-import { Op } from "sequelize";
-
-
-/**
- * Helper to extract photo filename from Multer req.files, req.file, or req.body
- */
-const getUploadedPhotoName = (req) => {
-    if (req.file?.filename) {
-        return req.file.filename;
-    }
-    if (req.files) {
-        if (req.files.Img?.[0]?.filename) return req.files.Img[0].filename;
-        if (req.files.empphoto?.[0]?.filename) return req.files.empphoto[0].filename;
-        if (req.files.image?.[0]?.filename) return req.files.image[0].filename;
-        if (req.files.photo?.[0]?.filename) return req.files.photo[0].filename;
-    }
-    if (req.body?.Img && typeof req.body.Img === "string") return req.body.Img;
-    if (req.body?.empphoto && typeof req.body.empphoto === "string") return req.body.empphoto;
-    return null;
-};
 
 /**
  * Helper to remove old photo from media folder if present
@@ -224,13 +204,11 @@ export const createEmp = async (req, res) => {
                 imagePath = req.files.Img[0]?.filename;
             }
 
-            // console.log("Image path : ", imagePath);
-
             const employee = await Employee.create({
                 ...req.body,
                 Img: imagePath,
                 Password: hashedPassword,
-                IPAddress: IPAddress
+                IPAddress: IPAddress,
             });
         }
 
