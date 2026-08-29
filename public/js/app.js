@@ -1,4 +1,4 @@
-import { AuthStorage } from './api.js';
+import { AuthStorage, hashPassword } from './api.js';
 import { AuthModule } from './auth.js';
 import { EmployeeModule } from './employee.js';
 import { DepartmentModule } from './department.js';
@@ -144,7 +144,8 @@ function initAuthUI() {
       submitBtn.disabled = true;
 
       try {
-        const res = await AuthModule.login(username, password);
+        const hashedPassword = await hashPassword(password);
+        const res = await AuthModule.login(username, hashedPassword);
         showToast(res.message || 'Login Successful!', 'success');
         checkAuthAndRender();
       } catch (err) {
@@ -161,11 +162,12 @@ function initAuthUI() {
     signupForm.addEventListener('submit', async (e) => {
       e.preventDefault();
 
+      const rawPassword = document.getElementById('reg-password').value.trim();
       const signupData = {
         ClientUkeyId: document.getElementById('reg-clientukeyid').value.trim() || `CLI-${Date.now()}`,
         CustId: document.getElementById('reg-custid').value.trim(),
         Username: document.getElementById('reg-username').value.trim(),
-        Password: document.getElementById('reg-password').value.trim(),
+        Password: await hashPassword(rawPassword),
         CompanyName: document.getElementById('reg-company').value.trim() || 'My Company',
         FirstName: document.getElementById('reg-firstname').value.trim(),
         LastName: document.getElementById('reg-lastname').value.trim(),
@@ -176,7 +178,7 @@ function initAuthUI() {
         IsActive: true
       };
 
-      if (!signupData.CustId || !signupData.Username || !signupData.Password) {
+      if (!signupData.CustId || !signupData.Username || !rawPassword) {
         showToast('CustId, Username, and Password are required!', 'error');
         return;
       }
@@ -453,6 +455,22 @@ function initEmployeeEvents() {
       }
     });
   }
+
+  // Toggle Password Visibility Button
+  const togglePassBtn = document.getElementById('btn-toggle-emp-password');
+  if (togglePassBtn) {
+    togglePassBtn.addEventListener('click', () => {
+      const passInput = document.getElementById('emp-password');
+      const icon = togglePassBtn.querySelector('i');
+      if (passInput) {
+        const isPass = passInput.type === 'password';
+        passInput.type = isPass ? 'text' : 'password';
+        if (icon) {
+          icon.className = isPass ? 'fas fa-eye-slash' : 'fas fa-eye';
+        }
+      }
+    });
+  }
 }
 
 // Load Employee List Table
@@ -599,10 +617,25 @@ async function openAddEmployeeModal() {
 
   form.reset();
   document.getElementById('emp-flag').value = 'A';
-  document.getElementById('emp-id').value = '';
+  document.getElementById('emp-id').value = ''; // Primary Key Id left empty for auto-increment on INSERT
   document.getElementById('modal-employee-title').textContent = 'Create New Employee';
-  document.getElementById('emp-password-group').classList.remove('hidden');
-  document.getElementById('emp-password').required = true;
+
+  // Password configuration for ADD mode
+  const passInput = document.getElementById('emp-password');
+  const passReq = document.getElementById('emp-password-req');
+  const passHint = document.getElementById('emp-password-hint');
+  if (passInput) {
+    passInput.value = '';
+    passInput.required = true;
+    passInput.placeholder = 'Account Password';
+  }
+  if (passReq) passReq.style.display = 'inline';
+  if (passHint) passHint.textContent = '(Required for new account)';
+
+  // Auto-generate Unique Employee ID (UKID)
+  const autoEmpId = 'EMP-' + Math.floor(100000 + Math.random() * 900000);
+  const empIdInput = document.getElementById('emp-employeeid');
+  if (empIdInput) empIdInput.value = autoEmpId;
 
   // Auto-fill & fix logged-in CustId to Admin CustId
   const currentUser = AuthStorage.getUser();
@@ -640,7 +673,9 @@ window.editEmployee = async function(id) {
     document.getElementById('emp-flag').value = 'U';
     document.getElementById('emp-id').value = emp.Id;
 
-    // Fill form fields
+    // Fill EmployeeId (UKID) & basic fields
+    const empIdInput = document.getElementById('emp-employeeid');
+    if (empIdInput) empIdInput.value = emp.EmployeeId || ('EMP-' + emp.Id);
     document.getElementById('emp-firstname').value = emp.FirstName || '';
     document.getElementById('emp-lastname').value = emp.LastName || '';
     document.getElementById('emp-username').value = emp.UserName || '';
@@ -672,10 +707,17 @@ window.editEmployee = async function(id) {
     document.getElementById('emp-universityname').value = emp.UniversityName || '';
     document.getElementById('emp-passingyear').value = emp.PassingYear || '';
 
-    // Password optional for update
-    document.getElementById('emp-password-group').classList.remove('hidden');
-    document.getElementById('emp-password').required = false;
-    document.getElementById('emp-password').placeholder = 'Leave blank to keep existing password';
+    // Password optional for UPDATE mode
+  const passInput = document.getElementById('emp-password');
+  const passReq = document.getElementById('emp-password-req');
+  const passHint = document.getElementById('emp-password-hint');
+  if (passInput) {
+    passInput.value = '';
+    passInput.required = false;
+    passInput.placeholder = '•••••••• (Leave blank to keep current)';
+  }
+  if (passReq) passReq.style.display = 'none';
+  if (passHint) passHint.textContent = '(Leave blank to keep existing, or enter new)';
 
     // Populate Department dropdown & select
     await DepartmentModule.populateDepartmentDropdown('emp-departmentid', emp.DepartmentId);
@@ -712,20 +754,52 @@ async function handleEmployeeFormSubmit(e) {
   const currentCustIdVal = document.getElementById('emp-custid').value || currentUser?.CustId || '';
   formData.set('CustId', currentCustIdVal);
 
+  if (flag === 'A') {
+    // 1. On INSERT: Remove 'Id' from payload so database auto-increments primary key Id
+    formData.delete('Id');
+
+    // 2. Auto-set EmployeeId (UKID)
+    const empIdVal = document.getElementById('emp-employeeid')?.value || ('EMP-' + Math.floor(100000 + Math.random() * 900000));
+    formData.set('EmployeeId', empIdVal);
+  } else if (flag === 'U') {
+    // On UPDATE: Must pass primary key 'Id' to update matching record
+    const primaryId = document.getElementById('emp-id').value;
+    if (!primaryId) {
+      showToast('Primary Employee ID is missing for update!', 'error');
+      return;
+    }
+    formData.set('Id', primaryId);
+
+    const empIdVal = document.getElementById('emp-employeeid')?.value || ('EMP-' + primaryId);
+    formData.set('EmployeeId', empIdVal);
+  }
+
   // Validation
   const firstName = formData.get('FirstName');
   const custId = formData.get('CustId');
   const userName = formData.get('UserName');
-  const password = formData.get('Password');
+  const rawPassword = formData.get('Password');
 
   if (!firstName || !custId || !userName) {
     showToast('FirstName, CustId, and UserName are required fields!', 'error');
     return;
   }
 
-  if (flag === 'A' && !password) {
-    showToast('Password is required when creating a new employee!', 'error');
-    return;
+  if (flag === 'A') {
+    if (!rawPassword || rawPassword.trim() === '') {
+      showToast('Password is required when creating a new employee!', 'error');
+      return;
+    }
+    const hashedPass = await hashPassword(rawPassword);
+    formData.set('Password', hashedPass);
+  } else if (flag === 'U') {
+    // On UPDATE: If password is empty or bullet placeholder, remove Password so existing password is kept!
+    if (!rawPassword || rawPassword.trim() === '' || rawPassword.trim() === '••••••••') {
+      formData.delete('Password');
+    } else {
+      const hashedPass = await hashPassword(rawPassword);
+      formData.set('Password', hashedPass);
+    }
   }
 
   const originalText = submitBtn.innerHTML;

@@ -246,7 +246,7 @@ export const createEmp = async (req, res) => {
 
             let password = employee.Password;
 
-            if (Password) {
+            if (Password && Password.trim() !== "" && Password.trim() !== "••••••••") {
                 password = await bcrypt.hash(
                     Password,
                     10

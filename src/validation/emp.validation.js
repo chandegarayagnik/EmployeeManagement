@@ -27,8 +27,7 @@ export const createEmpSchema = Joi.object({
     "string.max": "UserName cannot exceed 100 characters",
   }),
 
-  Password: Joi.string().max(500).required().messages({
-    "any.required": "Password is required",
+  Password: Joi.string().max(500).optional().allow(null, "").messages({
     "string.max": "Password cannot exceed 500 characters",
   }),
 
