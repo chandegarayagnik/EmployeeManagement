@@ -1,10 +1,10 @@
 import { apiRequest, AuthStorage } from './api.js';
 
 export const AuthModule = {
-  async login(username, password) {
+  async login(username, password, loginType = 'Admin') {
     const data = await apiRequest('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ Username: username, Password: password })
+      body: JSON.stringify({ Username: username, Password: password, loginType })
     });
 
     if (data.status && data.token) {

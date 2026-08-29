@@ -184,7 +184,7 @@ export const signup = async (req, res) => {
 
 export const login = async (req, res) => {
     const { Registration, Employee } = req.db.models;
-    const { Username, Password } = req.body;
+    const { Username, Password, loginType } = req.body;
     try {
         if (!Username || !Password) {
             return res.status(400).json({
@@ -193,63 +193,109 @@ export const login = async (req, res) => {
             });
         }
 
-        let userRecord = await Registration.findOne({
-            where: {
-                Username: Username.trim()
-            }
-        });
+        let user = null;
+        let isEmployeeAccount = false;
+        const isUserMode = loginType === 'User' || loginType === 'Employee';
 
-        let user = userRecord ? userRecord.toJSON() : null;
+        if (isUserMode) {
+            // USER LOGIN MODE: Strictly check EmployeeMaster table for employee credentials
+            if (Employee) {
+                const empRecord = await Employee.findOne({
+                    where: { UserName: Username.trim() }
+                });
 
-        if (!user && Employee) {
-            const empRecord = await Employee.findOne({
-                where: {
-                    UserName: Username.trim()
+                if (empRecord) {
+                    const isMatch = await bcrypt.compare(Password, empRecord.Password);
+                    if (isMatch) {
+                        user = {
+                            Id: empRecord.Id,
+                            ClientUkeyId: empRecord.EmployeeId || `EMP-${empRecord.Id}`,
+                            CustId: empRecord.CustId,
+                            FirstName: empRecord.FirstName,
+                            LastName: empRecord.LastName,
+                            Mobile: empRecord.Mobile1,
+                            Email: empRecord.Email,
+                            Username: empRecord.UserName,
+                            Password: empRecord.Password,
+                            Role: empRecord.Role || "User",
+                            IsActive: empRecord.IsActive
+                        };
+                        isEmployeeAccount = true;
+                    }
                 }
-            });
-
-            if (empRecord) {
-                user = {
-                    Id: empRecord.Id,
-                    ClientUkeyId: empRecord.EmployeeId || `EMP-${empRecord.Id}`,
-                    CustId: empRecord.CustId,
-                    FirstName: empRecord.FirstName,
-                    LastName: empRecord.LastName,
-                    Mobile: empRecord.Mobile1,
-                    Email: empRecord.Email,
-                    Username: empRecord.UserName,
-                    Password: empRecord.Password,
-                    Role: empRecord.Role || "User",
-                    IsActive: empRecord.IsActive
-                };
             }
-        }
 
-        if (!user) {
-            return res.status(401).json({
-                status: false,
-                message: "Invalid Username or Password"
+            if (!user) {
+                // If account exists in Registration table as Admin, instruct user to switch tab
+                const regCheck = await Registration.findOne({ where: { Username: Username.trim() } });
+                if (regCheck) {
+                    return res.status(401).json({
+                        status: false,
+                        message: "This is an Admin account. Please switch to 'Admin' mode above to log in."
+                    });
+                }
+                return res.status(401).json({
+                    status: false,
+                    message: "Invalid User Username or Password"
+                });
+            }
+        } else {
+            // ADMIN LOGIN MODE: Strictly check Registration / Admin accounts
+            const regRecord = await Registration.findOne({
+                where: { Username: Username.trim() }
             });
+
+            if (regRecord) {
+                const isMatch = await bcrypt.compare(Password, regRecord.Password);
+                if (isMatch) {
+                    user = regRecord.toJSON();
+                }
+            }
+
+            // Also check Employee table if account has Admin role
+            if (!user && Employee) {
+                const empRecord = await Employee.findOne({
+                    where: { UserName: Username.trim() }
+                });
+
+                if (empRecord && (empRecord.Role === 'Admin' || empRecord.Role === 'Administrator')) {
+                    const isMatch = await bcrypt.compare(Password, empRecord.Password);
+                    if (isMatch) {
+                        user = {
+                            Id: empRecord.Id,
+                            ClientUkeyId: empRecord.EmployeeId || `EMP-${empRecord.Id}`,
+                            CustId: empRecord.CustId,
+                            FirstName: empRecord.FirstName,
+                            LastName: empRecord.LastName,
+                            Mobile: empRecord.Mobile1,
+                            Email: empRecord.Email,
+                            Username: empRecord.UserName,
+                            Password: empRecord.Password,
+                            Role: empRecord.Role || "Admin",
+                            IsActive: empRecord.IsActive
+                        };
+                        isEmployeeAccount = true;
+                    }
+                } else if (empRecord && empRecord.Role !== 'Admin') {
+                    return res.status(401).json({
+                        status: false,
+                        message: "This is an Employee account. Please switch to 'User' mode above to log in."
+                    });
+                }
+            }
+
+            if (!user) {
+                return res.status(401).json({
+                    status: false,
+                    message: "Invalid Admin Username or Password"
+                });
+            }
         }
 
         if (!user.IsActive) {
             return res.status(403).json({
                 status: false,
                 message: "Your Account Is Inactive"
-            });
-        }
-
-        const passwordMatch = await bcrypt.compare(
-            Password,
-            user.Password
-        );
-
-        console.log("passwordMatch", passwordMatch);
-
-        if (!passwordMatch) {
-            return res.status(401).json({
-                status: false,
-                message: "Invalid Username or Password"
             });
         }
 

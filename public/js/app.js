@@ -105,6 +105,8 @@ document.addEventListener('DOMContentLoaded', () => {
   checkAuthAndRender();
 });
 
+let currentLoginRole = 'Admin';
+
 // Auth UI handling
 function initAuthUI() {
   const loginTabBtn = document.getElementById('btn-show-login');
@@ -112,21 +114,69 @@ function initAuthUI() {
   const loginForm = document.getElementById('form-login');
   const signupForm = document.getElementById('form-signup');
 
-  if (loginTabBtn && signupTabBtn) {
-    loginTabBtn.addEventListener('click', () => {
-      loginTabBtn.classList.add('active');
-      signupTabBtn.classList.remove('active');
-      loginForm.classList.remove('hidden');
-      signupForm.classList.add('hidden');
+  const btnRoleAdmin = document.getElementById('btn-role-mode-admin');
+  const btnRoleUser = document.getElementById('btn-role-mode-user');
+  const titleEl = document.getElementById('login-role-title');
+  const subEl = document.getElementById('login-role-subtitle');
+  const toggleLoginPassBtn = document.getElementById('btn-toggle-login-pass');
+
+  if (btnRoleAdmin && btnRoleUser) {
+    btnRoleAdmin.addEventListener('click', () => {
+      currentLoginRole = 'Admin';
+      btnRoleAdmin.style.background = 'var(--accent-primary, #0d9488)';
+      btnRoleAdmin.style.color = 'white';
+      btnRoleUser.style.background = 'transparent';
+      btnRoleUser.style.color = 'var(--text-muted)';
+      if (titleEl) titleEl.textContent = 'Admin Login';
+      if (subEl) subEl.textContent = 'Please enter your credentials to login as Admin.';
     });
 
-    signupTabBtn.addEventListener('click', () => {
-      signupTabBtn.classList.add('active');
-      loginTabBtn.classList.remove('active');
-      signupForm.classList.remove('hidden');
-      loginForm.classList.add('hidden');
+    btnRoleUser.addEventListener('click', () => {
+      currentLoginRole = 'User';
+      btnRoleUser.style.background = 'var(--accent-primary, #0d9488)';
+      btnRoleUser.style.color = 'white';
+      btnRoleAdmin.style.background = 'transparent';
+      btnRoleAdmin.style.color = 'var(--text-muted)';
+      if (titleEl) titleEl.textContent = 'User Login';
+      if (subEl) subEl.textContent = 'Please enter your credentials to access Employee Attendance Portal.';
     });
   }
+
+  if (toggleLoginPassBtn) {
+    toggleLoginPassBtn.addEventListener('click', () => {
+      const passInput = document.getElementById('login-password');
+      const icon = toggleLoginPassBtn.querySelector('i');
+      if (passInput) {
+        const isPass = passInput.type === 'password';
+        passInput.type = isPass ? 'text' : 'password';
+        if (icon) {
+          icon.className = isPass ? 'fas fa-eye-slash' : 'fas fa-eye';
+        }
+      }
+    });
+  }
+
+  const linkGotoSignup = document.getElementById('link-goto-signup');
+  const linkGotoLogin = document.getElementById('link-goto-login');
+
+  const showSignupForm = () => {
+    if (loginTabBtn) loginTabBtn.classList.remove('active');
+    if (signupTabBtn) signupTabBtn.classList.add('active');
+    if (loginForm) loginForm.classList.add('hidden');
+    if (signupForm) signupForm.classList.remove('hidden');
+  };
+
+  const showLoginForm = () => {
+    if (signupTabBtn) signupTabBtn.classList.remove('active');
+    if (loginTabBtn) loginTabBtn.classList.add('active');
+    if (signupForm) signupForm.classList.add('hidden');
+    if (loginForm) loginForm.classList.remove('hidden');
+  };
+
+  if (linkGotoSignup) linkGotoSignup.addEventListener('click', showSignupForm);
+  if (linkGotoLogin) linkGotoLogin.addEventListener('click', showLoginForm);
+  if (loginTabBtn) loginTabBtn.addEventListener('click', showLoginForm);
+  if (signupTabBtn) signupTabBtn.addEventListener('click', showSignupForm);
 
   // Handle Login Submit
   if (loginForm) {
@@ -146,8 +196,8 @@ function initAuthUI() {
       submitBtn.disabled = true;
 
       try {
-        const res = await AuthModule.login(username, password);
-        showToast(res.message || 'Login Successful!', 'success');
+        const res = await AuthModule.login(username, password, currentLoginRole);
+        showToast(res.message || `${currentLoginRole} Login Successful!`, 'success');
         checkAuthAndRender();
       } catch (err) {
         showToast(err.message || 'Login failed. Please check credentials.', 'error');
