@@ -184,9 +184,18 @@ function initAuthUI() {
       e.preventDefault();
       const username = document.getElementById('login-username').value.trim();
       const password = document.getElementById('login-password').value.trim();
+      const errAlert = document.getElementById('login-error-alert');
+      const errText = document.getElementById('login-error-text');
+
+      if (errAlert) errAlert.classList.add('hidden');
 
       if (!username || !password) {
-        showToast('Please enter both Username and Password', 'error');
+        const msg = 'Please enter both Username and Password';
+        if (errText && errAlert) {
+          errText.textContent = msg;
+          errAlert.classList.remove('hidden');
+        }
+        showToast(msg, 'error');
         return;
       }
 
@@ -200,7 +209,12 @@ function initAuthUI() {
         showToast(res.message || `${currentLoginRole} Login Successful!`, 'success');
         checkAuthAndRender();
       } catch (err) {
-        showToast(err.message || 'Login failed. Please check credentials.', 'error');
+        const errorMsg = err.message || 'Login failed. Please check credentials.';
+        if (errText && errAlert) {
+          errText.textContent = errorMsg;
+          errAlert.classList.remove('hidden');
+        }
+        showToast(errorMsg, 'error');
       } finally {
         submitBtn.innerHTML = originalText;
         submitBtn.disabled = false;

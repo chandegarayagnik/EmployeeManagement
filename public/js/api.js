@@ -54,7 +54,8 @@ export async function apiRequest(endpoint, options = {}) {
     // Handle token expiration / unauthorized
     if (response.status === 401 || response.status === 403) {
       const data = await response.json().catch(() => ({}));
-      if (data.message === "Token Expired" || response.status === 401) {
+      const isLoginEndpoint = endpoint.includes('/auth/login');
+      if (!isLoginEndpoint && (data.message === "Token Expired" || response.status === 401)) {
         AuthStorage.clearSession();
         window.dispatchEvent(new CustomEvent('auth:unauthorized'));
       }

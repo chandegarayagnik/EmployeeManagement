@@ -55,6 +55,11 @@
           <p id="login-role-subtitle" style="font-size:0.85rem; color:var(--text-muted);">Please enter your credentials to login as Admin.</p>
         </div>
 
+        <!-- In-form error message display banner -->
+        <div id="login-error-alert" class="hidden" style="margin-bottom:1.25rem; padding:0.85rem 1rem; border-radius:8px; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4); color:#fca5a5; font-size:0.85rem; font-weight:600; text-align:center;">
+          <i class="fas fa-exclamation-circle"></i> <span id="login-error-text">Error message text</span>
+        </div>
+
         <div class="form-group">
           <label class="form-label" for="login-username">Username <span class="req">*</span></label>
           <div style="position:relative;">
