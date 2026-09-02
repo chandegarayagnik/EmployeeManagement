@@ -1,36 +1,59 @@
+import fs from "fs";
+import path from "path";
+
+/**
+ * Helper function to remove attendance photo from media directory
+ */
+const removeAttendancePhoto = (photoFileName) => {
+    if (!photoFileName) return;
+    const filePath = path.resolve("./media", photoFileName);
+    if (fs.existsSync(filePath)) {
+        try {
+            fs.unlinkSync(filePath);
+        } catch (err) {
+            console.error("Error deleting attendance image file:", err);
+        }
+    }
+};
+
+/**
+ * Get Attendance listing with dynamic filters, pagination & photo references
+ */
 export const getAttendance = async (req, res) => {
     const { sequelize } = req.db;
     try {
-        const { empukid, date, status, page, pageSize } = req.query;
+        const { empukid, EmpId, date, AttendenceDate, status, page, pageSize } = req.query;
 
         // 1. INITIALIZE QUERIES
         let query = `
             SELECT a.*, e.name, e.email, e.position, e.salary 
             FROM attendance a WITH (NOLOCK)
-            LEFT JOIN emp e WITH (NOLOCK) ON a.empukid = e.empukid
+            LEFT JOIN emp e WITH (NOLOCK) ON (a.empukid = e.empukid OR a.EmpId = e.Id OR a.EmpId = e.EmployeeId)
             WHERE 1=1
         `;
         let countQuery = `
             SELECT COUNT(*) AS total 
             FROM attendance a WITH (NOLOCK)
-            LEFT JOIN emp e WITH (NOLOCK) ON a.empukid = e.empukid
+            LEFT JOIN emp e WITH (NOLOCK) ON (a.empukid = e.empukid OR a.EmpId = e.Id OR a.EmpId = e.EmployeeId)
             WHERE 1=1
         `;
         const replacements = {};
 
         // 2. DYNAMIC FILTER MAPPING
-        if (empukid) {
-            const condition = " AND a.empukid = :empukid";
+        const targetEmpId = empukid || EmpId;
+        if (targetEmpId) {
+            const condition = " AND (a.empukid = :targetEmpId OR a.EmpId = :targetEmpId)";
             query += condition;
             countQuery += condition;
-            replacements.empukid = empukid;
+            replacements.targetEmpId = targetEmpId;
         }
 
-        if (date) {
-            const condition = " AND a.date = :date";
+        const targetDate = date || AttendenceDate;
+        if (targetDate) {
+            const condition = " AND (a.date = :targetDate OR a.AttendenceDate = :targetDate)";
             query += condition;
             countQuery += condition;
-            replacements.date = date;
+            replacements.targetDate = targetDate;
         }
 
         if (status) {
@@ -41,7 +64,7 @@ export const getAttendance = async (req, res) => {
         }
 
         // 3. ORDER BY
-        query += " ORDER BY a.date DESC, a.check_in ASC";
+        query += " ORDER BY COALESCE(a.AttendenceDate, a.date) DESC, COALESCE(a.InTime, a.check_in) ASC";
 
         // 4. GET TOTAL COUNT
         const [countResult] = await sequelize.query(countQuery, { replacements });
@@ -61,9 +84,18 @@ export const getAttendance = async (req, res) => {
         // 6. EXECUTE DATA QUERY
         const [results] = await sequelize.query(query, { replacements });
 
+        // Map media URL for images if present
+        const mappedResults = results.map((item) => {
+            const imageName = item.Img || item.AttendanceImage || item.image || item.photo || null;
+            return {
+                ...item,
+                imageUrl: imageName ? `/media/${imageName}` : null,
+            };
+        });
+
         // 7. FINAL RESPONSE
         return res.status(200).json({
-            data: results,
+            data: mappedResults,
             total: totalCount,
             page: pageNum || null,
             limit: pageSizeNum || null,
@@ -83,6 +115,9 @@ export const getAttendance = async (req, res) => {
     }
 };
 
+/**
+ * Get single Attendance record by ID
+ */
 export const listAttendanceById = async (req, res) => {
     const { sequelize } = req.db;
     try {
@@ -90,8 +125,8 @@ export const listAttendanceById = async (req, res) => {
         const [result] = await sequelize.query(
             `SELECT a.*, e.name, e.email, e.position 
              FROM attendance a WITH (NOLOCK)
-             LEFT JOIN emp e WITH (NOLOCK) ON a.empukid = e.empukid
-             WHERE a.id = :id`,
+             LEFT JOIN emp e WITH (NOLOCK) ON (a.empukid = e.empukid OR a.EmpId = e.Id OR a.EmpId = e.EmployeeId)
+             WHERE a.AttendenceID = :id OR a.id = :id`,
             { replacements: { id } }
         );
 
@@ -102,9 +137,15 @@ export const listAttendanceById = async (req, res) => {
             });
         }
 
+        const record = result[0];
+        const imageName = record.Img || record.AttendanceImage || record.image || record.photo || null;
+
         return res.status(200).json({
             success: true,
-            data: result[0],
+            data: {
+                ...record,
+                imageUrl: imageName ? `/media/${imageName}` : null,
+            },
         });
     } catch (error) {
         return res.status(500).json({
@@ -118,6 +159,9 @@ export const listAttendanceById = async (req, res) => {
     }
 };
 
+/**
+ * Create or Update Attendance record with Image support
+ */
 export const createAttendance = async (req, res) => {
     const { Attendance } = req.db.models;
     const { sequelize } = req.db;
@@ -125,19 +169,74 @@ export const createAttendance = async (req, res) => {
     try {
         const flag = req.body.Flag || req.body.flag || "A";
 
+        // Extract uploaded image filename from multer
+        const uploadedImage =
+            req.files?.AttendanceImage?.[0]?.filename ||
+            req.files?.Img?.[0]?.filename ||
+            req.files?.image?.[0]?.filename ||
+            req.files?.photo?.[0]?.filename ||
+            req.file?.filename ||
+            null;
+
+        const IPAddress = req.headers["x-forwarded-for"] || req.socket?.remoteAddress || req.body.IPAddress || null;
+
         if (flag === "A") {
-            await Attendance.create({
+            const newRecord = await Attendance.create({
                 ...req.body,
+                Img: uploadedImage || req.body.Img || req.body.AttendanceImage || null,
+                AttendanceImage: uploadedImage || req.body.AttendanceImage || req.body.Img || null,
+                IPAddress: IPAddress,
             });
-            return res.status(200).json({
+
+            return res.status(201).json({
                 success: true,
                 message: "Attendance Created Successfully",
+                data: newRecord,
             });
         } else if (flag === "U") {
-            await Attendance.update(
-                { ...req.body },
-                { where: { id: req.body.id } }
-            );
+            const attendanceId = req.body.AttendenceID || req.body.id;
+
+            if (!attendanceId) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Attendance ID (AttendenceID or id) is required for update",
+                });
+            }
+
+            // Find existing record to preserve or update image file
+            let existingRecord = await Attendance.findByPk(attendanceId).catch(() => null);
+            if (!existingRecord) {
+                existingRecord = await Attendance.findOne({
+                    where: { AttendenceID: attendanceId },
+                }).catch(() => null);
+            }
+
+            let imagePath = existingRecord?.Img || existingRecord?.AttendanceImage || null;
+
+            if (uploadedImage) {
+                if (existingRecord?.Img) {
+                    removeAttendancePhoto(existingRecord.Img);
+                }
+                if (existingRecord?.AttendanceImage && existingRecord.AttendanceImage !== existingRecord.Img) {
+                    removeAttendancePhoto(existingRecord.AttendanceImage);
+                }
+                imagePath = uploadedImage;
+            }
+
+            const updatePayload = {
+                ...req.body,
+                Img: imagePath,
+                AttendanceImage: imagePath,
+                IPAddress: IPAddress,
+            };
+
+            if (existingRecord) {
+                await existingRecord.update(updatePayload);
+            } else {
+                await Attendance.update(updatePayload, {
+                    where: { AttendenceID: attendanceId },
+                });
+            }
 
             return res.status(200).json({
                 success: true,
@@ -150,6 +249,7 @@ export const createAttendance = async (req, res) => {
             });
         }
     } catch (error) {
+        console.error("CREATE/UPDATE ATTENDANCE ERROR:", error);
         return res.status(500).json({
             success: false,
             message: error.message,
@@ -161,22 +261,39 @@ export const createAttendance = async (req, res) => {
     }
 };
 
+/**
+ * Delete Attendance record and remove associated photo file
+ */
 export const deleteAttendance = async (req, res) => {
     const { Attendance } = req.db.models;
     const { sequelize } = req.db;
 
     try {
         const { id } = req.params;
-        const result = await Attendance.destroy({
-            where: { id },
-        });
 
-        if (result === 0) {
+        let record = await Attendance.findByPk(id).catch(() => null);
+        if (!record) {
+            record = await Attendance.findOne({
+                where: { AttendenceID: id },
+            }).catch(() => null);
+        }
+
+        if (!record) {
             return res.status(404).json({
                 success: false,
                 message: "Attendance record not found",
             });
         }
+
+        // Remove associated photo file if present
+        if (record.Img) {
+            removeAttendancePhoto(record.Img);
+        }
+        if (record.AttendanceImage && record.AttendanceImage !== record.Img) {
+            removeAttendancePhoto(record.AttendanceImage);
+        }
+
+        await record.destroy();
 
         return res.status(200).json({
             success: true,

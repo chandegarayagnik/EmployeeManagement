@@ -39,6 +39,7 @@ export const upload = multer({
 }).fields([
     { name: "empphoto", maxCount: 10 },
     { name: "Img", maxCount: 10 },
+    { name: "AttendanceImage", maxCount: 10 },
     { name: "image", maxCount: 10 },
     { name: "photo", maxCount: 10 }
 ]);
